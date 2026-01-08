@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>导盲犬</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 120px;
+        height: 120px;
+        overflow: hidden;
+        background: transparent;
+        cursor: move;
+      }
+
+      .pet-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease;
+        -webkit-app-region: drag;
+      }
+
+      .pet-container:hover {
+        transform: scale(1.1);
+      }
+
+      .pet-container:active {
+        transform: scale(0.95);
+      }
+
+      .pet-image {
+        width: 100px;
+        height: 100px;
+        object-fit: contain;
+        cursor: pointer;
+        filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+        -webkit-app-region: no-drag;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="pet-container">
+      <img
+        src="../materials/image/icon_dog.png"
+        alt="导盲犬"
+        class="pet-image"
+        id="petImage"
+      />
+    </div>
+
+    <script>
+      // 点击宠物图标打开对话窗口
+      document.getElementById('petImage').addEventListener('click', () => {
+        if (window.electronAPI) {
+          window.electronAPI.openChatWindow();
+        }
+      });
+    </script>
+  </body>
+</html>
