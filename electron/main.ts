@@ -24,22 +24,40 @@ const isDev = !app.isPackaged;
 
 // 创建宠物窗口
 function createPetWindow() {
+  // 获取屏幕尺寸
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  // 计算右下角位置（留出一些边距）
+  const windowWidth = 120;
+  const windowHeight = 120;
+  const margin = 20;
+  const x = screenWidth - windowWidth - margin;
+  const y = screenHeight - windowHeight - margin;
+
   petWindow = new BrowserWindow({
-    width: 120,
-    height: 120,
+    width: windowWidth,
+    height: windowHeight,
+    x: x,
+    y: y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true,
-    visibleOnAllWorkspaces: true,
-    fullscreenable: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-  } as any);
+  });
+
+  // 设置窗口在所有工作区可见（macOS）
+  if (process.platform === 'darwin') {
+    petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    petWindow.setAlwaysOnTop(true, 'floating');
+  }
 
   // 加载宠物窗口内容
   if (isDev) {
@@ -62,9 +80,42 @@ function createChatWindow() {
     return;
   }
 
+  // 计算对话窗口位置（在宠物窗口上方）
+  let x = 100;
+  let y = 100;
+  
+  if (petWindow) {
+    const [petX, petY] = petWindow.getPosition();
+    const [petWidth, petHeight] = petWindow.getSize();
+    
+    const chatWidth = 400;
+    const chatHeight = 600;
+    const margin = 10;
+    
+    // 对话窗口出现在宠物图标上方，水平居中
+    x = petX + (petWidth - chatWidth) / 2;
+    y = petY - chatHeight - margin;
+    
+    // 确保不超出屏幕边界
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    
+    // 水平方向边界检查
+    if (x < 0) x = 10;
+    if (x + chatWidth > screenWidth) x = screenWidth - chatWidth - 10;
+    
+    // 垂直方向边界检查（如果上方空间不够，就放在下方）
+    if (y < 0) {
+      y = petY + petHeight + margin;
+    }
+  }
+
   chatWindow = new BrowserWindow({
     width: 400,
     height: 600,
+    x: x,
+    y: y,
     minWidth: 350,
     minHeight: 400,
     show: false,
@@ -97,8 +148,8 @@ function createChatWindow() {
 app.whenReady().then(() => {
   createPetWindow();
 
-  // 注册全局快捷键 Cmd+Shift+A
-  const ret = globalShortcut.register('CommandOrControl+Shift+A', () => {
+  // 注册全局快捷键 Cmd+Shift+0
+  const ret = globalShortcut.register('CommandOrControl+Shift+0', () => {
     log.info('Global shortcut triggered');
     createChatWindow();
   });
@@ -134,6 +185,14 @@ ipcMain.on('open-chat-window', () => {
 ipcMain.on('close-chat-window', () => {
   if (chatWindow) {
     chatWindow.close();
+  }
+});
+
+// 移动宠物窗口
+ipcMain.on('move-pet-window', (event, deltaX, deltaY) => {
+  if (petWindow) {
+    const [x, y] = petWindow.getPosition();
+    petWindow.setPosition(x + deltaX, y + deltaY);
   }
 });
 

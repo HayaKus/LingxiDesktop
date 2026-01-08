@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveConfig: async (config: any): Promise<void> => {
     return await ipcRenderer.invoke('save-config', config);
   },
+
+  // 移动窗口
+  moveWindow: (deltaX: number, deltaY: number) => {
+    ipcRenderer.send('move-pet-window', deltaX, deltaY);
+  },
 });
 
 // 类型声明
@@ -41,6 +46,7 @@ export interface ElectronAPI {
   readClipboardImage: () => Promise<string | null>;
   getConfig: () => Promise<any>;
   saveConfig: (config: any) => Promise<void>;
+  moveWindow: (deltaX: number, deltaY: number) => void;
 }
 
 declare global {

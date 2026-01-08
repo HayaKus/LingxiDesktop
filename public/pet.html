@@ -16,7 +16,7 @@
         height: 120px;
         overflow: hidden;
         background: transparent;
-        cursor: move;
+        user-select: none;
       }
 
       .pet-container {
@@ -26,15 +26,11 @@
         align-items: center;
         justify-content: center;
         transition: transform 0.2s ease;
-        -webkit-app-region: drag;
+        position: relative;
       }
 
       .pet-container:hover {
         transform: scale(1.1);
-      }
-
-      .pet-container:active {
-        transform: scale(0.95);
       }
 
       .pet-image {
@@ -43,12 +39,13 @@
         object-fit: contain;
         cursor: pointer;
         filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
-        -webkit-app-region: no-drag;
+        -webkit-user-drag: none; /* 禁用图片拖拽 */
+        user-drag: none;
       }
     </style>
   </head>
   <body>
-    <div class="pet-container">
+    <div class="pet-container" id="petContainer">
       <img
         src="../materials/image/icon_dog.png"
         alt="导盲犬"
@@ -58,11 +55,80 @@
     </div>
 
     <script>
-      // 点击宠物图标打开对话窗口
-      document.getElementById('petImage').addEventListener('click', () => {
-        if (window.electronAPI) {
-          window.electronAPI.openChatWindow();
+      const petImage = document.getElementById('petImage');
+      let mouseDownTime = 0;
+      let mouseDownX = 0;
+      let mouseDownY = 0;
+      let isDragging = false;
+      const LONG_PRESS_THRESHOLD = 200; // 200ms 作为长按阈值
+
+      // 阻止图片的默认拖拽行为
+      petImage.addEventListener('dragstart', (e) => {
+        e.preventDefault();
+      });
+
+      // 鼠标按下
+      petImage.addEventListener('mousedown', (e) => {
+        if (e.button === 0) { // 只处理左键
+          e.preventDefault(); // 阻止默认行为
+          mouseDownTime = Date.now();
+          mouseDownX = e.screenX;
+          mouseDownY = e.screenY;
+          isDragging = false;
+          console.log('🖱️ 鼠标按下');
         }
+      });
+
+      // 鼠标移动 - 拖动窗口
+      document.addEventListener('mousemove', (e) => {
+        if (mouseDownTime > 0) {
+          const duration = Date.now() - mouseDownTime;
+          
+          // 如果按住超过阈值，开始拖动
+          if (duration >= LONG_PRESS_THRESHOLD && !isDragging) {
+            isDragging = true;
+            console.log('🔄 开始拖动');
+          }
+          
+          if (isDragging) {
+            const deltaX = e.screenX - mouseDownX;
+            const deltaY = e.screenY - mouseDownY;
+            
+            if (window.electronAPI && window.electronAPI.moveWindow) {
+              window.electronAPI.moveWindow(deltaX, deltaY);
+            }
+            
+            mouseDownX = e.screenX;
+            mouseDownY = e.screenY;
+          }
+        }
+      });
+
+      // 鼠标释放
+      document.addEventListener('mouseup', (e) => {
+        if (e.button === 0 && mouseDownTime > 0) {
+          const duration = Date.now() - mouseDownTime;
+          
+          if (isDragging) {
+            console.log('✅ 拖动结束');
+          } else if (duration < LONG_PRESS_THRESHOLD) {
+            console.log('👆 点击操作 - 打开对话框');
+            if (window.electronAPI) {
+              window.electronAPI.openChatWindow();
+            }
+          } else {
+            console.log('⏱️ 长按但未移动 - 无操作');
+          }
+          
+          // 重置状态
+          mouseDownTime = 0;
+          isDragging = false;
+        }
+      });
+
+      // 禁用右键菜单
+      document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
       });
     </script>
   </body>

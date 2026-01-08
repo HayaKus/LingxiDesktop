@@ -5,6 +5,7 @@ import { generateId, convertToChatMessage, formatError } from '../utils/helpers'
 
 export function InputArea() {
   const [input, setInput] = useState('');
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const {
     messages,
     isLoading,
@@ -17,6 +18,11 @@ export function InputArea() {
     setIncludeScreenshot,
     setIncludeClipboard,
   } = useChatStore();
+
+  // 自动聚焦输入框
+  React.useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -141,6 +147,7 @@ export function InputArea() {
       {/* 输入框 */}
       <div className="flex gap-2">
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
