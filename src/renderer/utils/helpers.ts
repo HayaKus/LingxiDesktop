@@ -83,13 +83,44 @@ export function validateApiKey(apiKey: string): boolean {
  * 格式化错误消息
  */
 export function formatError(error: any): string {
+  // 获取错误消息
+  let message = '';
+  
   if (error.response?.data?.error?.message) {
-    return error.response.data.error.message;
+    message = error.response.data.error.message;
+  } else if (error.message) {
+    message = error.message;
+  } else if (typeof error === 'string') {
+    message = error;
   }
-  if (error.message) {
-    return error.message;
+  
+  // 特殊错误处理
+  if (message.includes('模型参数') || message.includes('model')) {
+    return 'API密钥无效或已过期，请点击右上角"设置"重新配置';
   }
-  return '未知错误，请稍后重试';
+  
+  if (message.includes('not initialized')) {
+    return '请先配置 API 密钥';
+  }
+  
+  if (message.includes('401') || message.includes('Unauthorized')) {
+    return 'API密钥无效，请检查配置';
+  }
+  
+  if (message.includes('403') || message.includes('Forbidden')) {
+    return 'API密钥权限不足，请检查配置';
+  }
+  
+  if (message.includes('429') || message.includes('rate limit')) {
+    return 'API调用频率超限，请稍后重试';
+  }
+  
+  if (message.includes('500') || message.includes('502') || message.includes('503')) {
+    return 'API服务暂时不可用，请稍后重试';
+  }
+  
+  // 返回原始消息或默认消息
+  return message || '未知错误，请稍后重试';
 }
 
 /**

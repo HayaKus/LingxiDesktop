@@ -73,10 +73,10 @@ function createPetWindow() {
   log.info('Pet window created');
 }
 
-// 创建对话窗口
+// 创建对话窗口（如果已打开则关闭）
 function createChatWindow() {
   if (chatWindow) {
-    chatWindow.focus();
+    chatWindow.close();
     return;
   }
 
@@ -196,22 +196,91 @@ ipcMain.on('move-pet-window', (event, deltaX, deltaY) => {
   }
 });
 
-// 截图请求
+// 截图请求 - 智能截取当前窗口
 ipcMain.handle('capture-screen', async () => {
   try {
-    const { desktopCapturer } = require('electron');
+    const { desktopCapturer, screen } = require('electron');
+    
+    // 获取导盲犬窗口的位置
+    let petPosition = null;
+    if (petWindow) {
+      const [x, y] = petWindow.getPosition();
+      const [width, height] = petWindow.getSize();
+      petPosition = {
+        x: x + width / 2,  // 导盲犬中心点
+        y: y + height / 2,
+      };
+      log.info(`Pet window position: (${petPosition.x}, ${petPosition.y})`);
+    }
+    
+    // 获取所有窗口和屏幕源
+    // 注意：对于窗口截图，需要使用更大的尺寸才能获取到内容
     const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1920, height: 1080 },
+      types: ['window', 'screen'],
+      thumbnailSize: { width: 3840, height: 2160 },  // 使用4K分辨率确保能截取到内容
+      fetchWindowIcons: false,  // 不需要窗口图标
     });
 
-    if (sources.length > 0) {
-      const screenshot = sources[0].thumbnail.toPNG();
-      const base64 = screenshot.toString('base64');
-      return `data:image/png;base64,${base64}`;
+    if (sources.length === 0) {
+      throw new Error('No screen source available');
     }
 
-    throw new Error('No screen source available');
+    log.info(`Found ${sources.length} sources`);
+    
+    // 如果有导盲犬位置信息，尝试找到它下方的窗口
+    if (petPosition) {
+      // 过滤掉导盲犬自己的窗口和对话窗口
+      const windowSources = sources.filter(source => {
+        const name = source.name.toLowerCase();
+        const isOwnWindow = name.includes('iamdog') || 
+                           name.includes('导盲犬') ||
+                           name.includes('electron');
+        
+        if (isOwnWindow) {
+          log.info(`Filtered out own window: ${source.name}`);
+        }
+        
+        return !isOwnWindow && source.id.startsWith('window:');
+      });
+      
+      log.info(`Found ${windowSources.length} candidate windows`);
+      
+      // 记录所有候选窗口
+      windowSources.forEach((source, index) => {
+        log.info(`Window ${index + 1}: ${source.name} (${source.id})`);
+      });
+      
+      // 选择第一个非导盲犬窗口（通常是用户正在使用的窗口）
+      if (windowSources.length > 0) {
+        const targetWindow = windowSources[0];
+        log.info(`Selected window: ${targetWindow.name}`);
+        
+        try {
+          const screenshot = targetWindow.thumbnail.toPNG();
+          const base64 = screenshot.toString('base64');
+          log.info(`Window screenshot size: ${base64.length} bytes`);
+          
+          // 如果截图大小为0，说明没有权限或截图失败
+          if (base64.length === 0) {
+            log.error('Window screenshot is empty - Screen Recording permission required');
+            throw new Error('需要授予"屏幕录制"权限才能截取窗口。\n请前往：系统偏好设置 → 安全性与隐私 → 隐私 → 屏幕录制，勾选 Electron');
+          }
+          
+          return `data:image/png;base64,${base64}`;
+        } catch (error) {
+          log.error(`Failed to capture window ${targetWindow.name}:`, error);
+          throw error;
+        }
+      }
+    }
+    
+    // Fallback: 使用屏幕截图
+    log.info('Fallback to screen capture');
+    const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+    const screenshot = screenSource.thumbnail.toPNG();
+    const base64 = screenshot.toString('base64');
+    
+    return `data:image/png;base64,${base64}`;
   } catch (error) {
     log.error('Screenshot failed:', error);
     throw error;

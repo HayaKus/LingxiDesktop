@@ -24,6 +24,12 @@ export function InputArea() {
     textareaRef.current?.focus();
   }, []);
 
+  // 默认勾选两个选项
+  React.useEffect(() => {
+    setIncludeScreenshot(true);
+    setIncludeClipboard(true);
+  }, [setIncludeScreenshot, setIncludeClipboard]);
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -49,22 +55,17 @@ export function InputArea() {
         }
       }
 
-      // 收集剪贴板图片
+      // 收集剪贴板图片（如果没有图片就跳过，不报错）
       if (includeClipboard) {
         try {
           const clipboardImage = await window.electronAPI.readClipboardImage();
           if (clipboardImage) {
             imageUrls.push(clipboardImage);
-          } else {
-            setError('剪贴板中没有图片');
-            setLoading(false);
-            return;
           }
+          // 如果剪贴板没有图片，静默跳过，不报错
         } catch (error) {
           console.error('Read clipboard failed:', error);
-          setError('读取剪贴板失败');
-          setLoading(false);
-          return;
+          // 读取失败也不报错，静默跳过
         }
       }
 
@@ -129,7 +130,7 @@ export function InputArea() {
             disabled={isLoading}
             className="w-4 h-4"
           />
-          <span className="text-sm text-gray-700">📷 包含当前截图</span>
+          <span className="text-sm text-gray-700">📷 包含当前屏幕</span>
         </label>
 
         <label className="flex items-center gap-2 cursor-pointer">
