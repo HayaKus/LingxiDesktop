@@ -3,6 +3,7 @@ import { useChatStore } from '../store/chatStore';
 import { aiService } from '../utils/aiService';
 import { generateId, convertToChatMessage, formatError } from '../utils/helpers';
 import { intelligentContextManagement } from '../utils/contextManager';
+import { logger } from '../utils/logger';
 
 // 提取AI建议回复的内容
 // 匹配系统提示词中要求的标准格式：建议回复："xxx"
@@ -20,6 +21,8 @@ function extractSuggestedReply(aiResponse: string): string | null {
 export function InputArea() {
   const [input, setInput] = useState('');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const noticeTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  
   const {
     messages,
     isLoading,
@@ -27,6 +30,7 @@ export function InputArea() {
     includeClipboard,
     autoClipboard,
     knowledge,
+    contextTrimNotice,
     addMessage,
     updateLastMessage,
     setLoading,
@@ -34,6 +38,7 @@ export function InputArea() {
     setIncludeScreenshot,
     setIncludeClipboard,
     setAutoClipboard,
+    setContextTrimNotice,
   } = useChatStore();
 
   // 自动聚焦输入框
@@ -47,6 +52,15 @@ export function InputArea() {
     setIncludeClipboard(true);
     setAutoClipboard(true);
   }, [setIncludeScreenshot, setIncludeClipboard, setAutoClipboard]);
+
+  // 组件卸载时清理定时器
+  React.useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -119,21 +133,52 @@ export function InputArea() {
       }
 
       // ✅ 智能上下文管理：动态裁剪历史消息
-      console.log('\n🔄 开始上下文管理...');
+      logger.info('🔄 开始上下文管理...');
       const { trimmedMessages, stats } = intelligentContextManagement(
         messages,
         newUserMessage,
         knowledge
       );
       
-      // 静默裁剪，仅日志输出
-      if (stats.removedCount > 0) {
-        console.log(`\n📊 上下文优化统计：`);
-        console.log(`   原始消息：${stats.originalCount} 条 (${stats.originalTokens.toLocaleString()} tokens)`);
-        console.log(`   保留消息：${stats.trimmedCount} 条 (${stats.trimmedTokens.toLocaleString()} tokens)`);
-        console.log(`   移除消息：${stats.removedCount} 条`);
-        console.log(`   目标窗口：${stats.targetTokens.toLocaleString()} tokens`);
-        console.log(`   使用率：${((stats.trimmedTokens / stats.targetTokens) * 100).toFixed(1)}%\n`);
+      // 上下文裁剪提示
+      if (stats.removedCount > 0 || stats.imagesRemoved > 0) {
+        logger.info('📊 上下文优化统计：', {
+          originalCount: stats.originalCount,
+          originalTokens: stats.originalTokens,
+          trimmedCount: stats.trimmedCount,
+          trimmedTokens: stats.trimmedTokens,
+          removedCount: stats.removedCount,
+          imagesRemoved: stats.imagesRemoved,
+          targetTokens: stats.targetTokens,
+          usageRate: `${((stats.trimmedTokens / stats.targetTokens) * 100).toFixed(1)}%`,
+        });
+        
+        // 清除之前的定时器
+        if (noticeTimerRef.current) {
+          clearTimeout(noticeTimerRef.current);
+        }
+        
+        // 构建提示信息
+        let notice = '已自动优化对话上下文：';
+        if (stats.imagesRemoved > 0 && stats.removedCount === 0) {
+          // 只移除了图片
+          notice += `移除 ${stats.imagesRemoved} 张旧图片，保留最新图片和所有文字`;
+        } else if (stats.imagesRemoved > 0 && stats.removedCount > 0) {
+          // 既移除了图片又移除了消息
+          notice += `移除 ${stats.imagesRemoved} 张旧图片和 ${stats.removedCount} 条旧消息，保留最近 ${stats.trimmedCount} 条`;
+        } else {
+          // 只移除了消息
+          notice += `保留最近 ${stats.trimmedCount} 条消息，移除较早的 ${stats.removedCount} 条消息`;
+        }
+        
+        // 设置系统提示（不作为对话消息）
+        setContextTrimNotice(notice);
+        
+        // 5秒后自动清除提示
+        noticeTimerRef.current = setTimeout(() => {
+          setContextTrimNotice(null);
+          noticeTimerRef.current = null;
+        }, 5000);
       }
       
       // 准备 AI 请求 - 使用裁剪后的历史消息
@@ -152,11 +197,23 @@ export function InputArea() {
 
       // 流式接收 AI 响应
       let fullResponse = '';
-      for await (const chunk of aiService.chat(chatMessages, knowledge, (error) => {
-        setError(formatError(error));
-      })) {
-        fullResponse += chunk;
-        updateLastMessage(fullResponse);
+      try {
+        for await (const chunk of aiService.chat(chatMessages, knowledge, (error) => {
+          console.error('💥 AI Service 回调错误：', error);
+          setError(formatError(error));
+        })) {
+          fullResponse += chunk;
+          updateLastMessage(fullResponse);
+        }
+      } catch (streamError: any) {
+        console.error('💥 流式响应错误：', streamError);
+        console.error('   错误详情：', {
+          name: streamError.name,
+          message: streamError.message,
+          stack: streamError.stack,
+          ...streamError
+        });
+        throw streamError;
       }
 
       // 如果开启了自动复制到粘贴板，智能提取AI建议的回复内容
@@ -196,6 +253,14 @@ export function InputArea() {
 
   return (
     <div className="border-t border-gray-200 p-4 bg-white">
+      {/* 上下文裁剪提示 */}
+      {contextTrimNotice && (
+        <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+          <span>💡</span>
+          <span>{contextTrimNotice}</span>
+        </div>
+      )}
+      
       {/* 选项 */}
       <div className="flex gap-4 mb-3 flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer">
@@ -206,7 +271,7 @@ export function InputArea() {
             disabled={isLoading}
             className="w-4 h-4"
           />
-          <span className="text-sm text-gray-700">允许对话期间查看屏幕</span>
+          <span className="text-sm text-gray-700">附带屏幕信息</span>
         </label>
 
         <label className="flex items-center gap-2 cursor-pointer">
@@ -217,18 +282,7 @@ export function InputArea() {
             disabled={isLoading}
             className="w-4 h-4"
           />
-          <span className="text-sm text-gray-700">允许对话期间查看粘贴板</span>
-        </label>
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={autoClipboard}
-            onChange={(e) => setAutoClipboard(e.target.checked)}
-            disabled={isLoading}
-            className="w-4 h-4"
-          />
-          <span className="text-sm text-gray-700">将AI建议回答复制到粘贴板</span>
+          <span className="text-sm text-gray-700">附带粘贴板图片</span>
         </label>
       </div>
 

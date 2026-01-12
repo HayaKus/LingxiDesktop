@@ -1,11 +1,11 @@
-# 导盲犬 (IamDog) - 技术方案设计
+# 灵析 (Lingxi) - 技术方案设计
 
 > 桌面AI助手的详细技术实现方案
 
-**文档版本**：v3.0  
+**文档版本**：v3.1  
 **最后更新**：2026-01-12  
 **负责人**：哈雅（263321）  
-**状态**：✅ 智能上下文管理已完成
+**状态**：✅ 智能上下文管理已优化（优先移除图片策略）
 
 ---
 
@@ -15,7 +15,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  导盲犬 (IamDog) 桌面应用                  │
+│                  灵析 (Lingxi) 桌面应用                  │
 ├─────────────────────────────────────────────────────────┤
 │                                                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
@@ -176,15 +176,15 @@ const sources = await desktopCapturer.getSources({
   thumbnailSize: { width: 3840, height: 2160 },  // 4K分辨率
 });
 
-// 2. 过滤掉导盲犬自己的窗口
+// 2. 过滤掉灵析自己的窗口
 const windowSources = sources.filter(source => {
   const name = source.name.toLowerCase();
-  return !name.includes('iamdog') && 
-         !name.includes('导盲犬') &&
+  return !name.includes('lingxi') && 
+         !name.includes('灵析') &&
          source.id.startsWith('window:');
 });
 
-// 3. 选择第一个非导盲犬窗口（通常是用户正在使用的窗口）
+// 3. 选择第一个非灵析窗口（通常是用户正在使用的窗口）
 const targetWindow = windowSources[0];
 ```
 
@@ -272,9 +272,9 @@ for await (const chunk of stream) {
 }
 ```
 
-#### 5.3 智能上下文管理（v3.0新增）⭐
+#### 5.3 智能上下文管理（v3.1优化）⭐
 
-**核心方案**：组合方案 = 动态计算 + 85%目标窗口 + 基于Token裁剪
+**核心方案**：优先移除图片策略 = 动态计算 + 85%目标窗口 + 图片优先裁剪 + Token裁剪
 
 ##### 5.3.1 千问max模型参数
 ```typescript
@@ -320,7 +320,7 @@ export function estimateMessageTokens(message: Message): TokenEstimate {
 
 ##### 5.3.3 上下文管理器 (`contextManager.ts`)
 
-**智能裁剪流程**：
+**智能裁剪流程（v3.1优化）**：
 
 ```typescript
 1. 动态计算可用空间
@@ -329,15 +329,76 @@ export function estimateMessageTokens(message: Message): TokenEstimate {
 2. 设置目标窗口（85%）
    目标 = 可用空间 × 0.85
 
-3. 计算历史tokens
-   遍历所有历史消息，累加tokens
+3. 计算历史tokens和请求体大小
+   遍历所有历史消息，累加tokens和字节数
 
 4. 判断是否需要裁剪
-   if (历史 > 目标) → 裁剪
+   if (历史 > 目标 || 请求体 > 5MB) → 裁剪
    else → 保留全部
 
-5. 基于token裁剪
-   从后往前累加，直到达到目标窗口
+5. 策略1：优先移除旧图片（保留最新1张）
+   - 找到最后一条有图片的消息
+   - 移除之前所有消息的图片（保留文字）
+   - 重新计算tokens和请求体大小
+   - 如果满足限制 → 返回结果 ✅
+
+6. 策略2：如果还超限，移除整条消息
+   - 从最新消息开始往前累加
+   - 直到达到目标窗口
+```
+
+**v3.1核心优化**：
+
+**为什么优先移除图片？**
+1. **图片占用大量token**：每张图片约1500 tokens，而文字只需1.5字符/token
+2. **图片通常只在当时有用**：后续对话主要依赖文字上下文
+3. **保留更长的对话历史**：移除图片后可以保留更多轮文字对话
+4. **符合实际使用场景**：用户更关心对话内容，而不是旧图片
+
+**优化前后对比**：
+
+```
+之前的策略（整体滑动窗口）：
+消息1: 文字(100) + 图片(5000) = 5100 tokens ❌ 移除
+消息2: 文字(100) + 图片(5000) = 5100 tokens ❌ 移除
+消息3: 文字(100) + 图片(5000) = 5100 tokens ✅ 保留
+消息4: 文字(100) + 图片(5000) = 5100 tokens ✅ 保留
+消息5: 文字(100) + 图片(5000) = 5100 tokens ✅ 保留
+结果：保留3条完整消息，15,300 tokens
+
+现在的策略（优先移除图片）：
+消息1: 文字(100) ✅ [图片已移除]
+消息2: 文字(100) ✅ [图片已移除]
+消息3: 文字(100) ✅ [图片已移除]
+消息4: 文字(100) ✅ [图片已移除]
+消息5: 文字(100) + 图片(5000) = 5100 tokens ✅ [保留最新图片]
+结果：保留5条消息（4条纯文字 + 1条带图片），5,500 tokens
+
+优势：
+✅ 对话历史：3轮 → 5轮（提升67%）
+✅ Token使用：15,300 → 5,500（节省64%）
+✅ 上下文更完整：AI能看到更多轮对话
+```
+
+**实际场景示例**：
+
+```
+用户：[截图] 这个报错怎么解决？
+AI：这是xxx问题，建议...
+用户：试了，还是不行
+AI：那试试...
+用户：[新截图] 现在又报这个错
+AI：这个是...
+用户：总结一下前面的问题
+
+优化前：
+- AI只能看到最近3轮对话
+- 可能看不到完整的问题描述
+
+优化后：
+- AI能看到完整的5轮对话 ✅
+- 能看到最新的截图 ✅
+- 能理解完整的问题演进过程 ✅
 ```
 
 **核心特点**：
@@ -412,7 +473,7 @@ interface Config {
 #### 6.2 存储方式
 - 使用 `electron-store`
 - 本地 JSON 文件
-- 位置：`~/Library/Application Support/IamDog/config.json`
+- 位置：`~/Library/Application Support/Lingxi/config.json`
 
 ---
 
@@ -580,19 +641,40 @@ interface Config {
 
 ### 开发环境
 ```bash
-# 一键启动
-./start.sh
-
-# 或手动启动
+# 安装依赖
 npm install
-npm run dev          # 终端1
-npm run electron:dev # 终端2
+
+# 启动开发服务器（终端1）
+npm run dev
+
+# 启动Electron（终端2）
+npm run electron:dev
 ```
 
 ### 构建打包
 ```bash
+# 构建并打包
 npm run build
-npm run package:mac
+npm run electron:build
+
+# 生成的文件
+release/
+├── 灵析-0.1.0-arm64.dmg              # DMG 安装包
+├── 灵析-0.1.0-arm64-mac.zip          # ZIP 压缩包
+└── mac-arm64/
+    └── 灵析.app                       # 应用程序
+```
+
+### 安装方式
+```bash
+# 方式1：直接运行
+open release/mac-arm64/灵析.app
+
+# 方式2：安装到应用程序文件夹
+cp -r release/mac-arm64/灵析.app /Applications/
+
+# 方式3：使用DMG安装包
+open release/灵析-0.1.0-arm64.dmg
 ```
 
 ---
@@ -615,7 +697,7 @@ npm run package:mac
 ### 日志记录
 - 使用 electron-log
 - 分级记录（info/warn/error）
-- 位置：`~/Library/Logs/IamDog/`
+- 位置：`~/Library/Logs/Lingxi/`
 
 ### 调试信息
 - 控制台输出交互状态

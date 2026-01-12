@@ -1,4 +1,4 @@
-# 导盲犬 (IamDog) - 桌面AI助手
+# 灵析 (Lingxi) - 桌面AI助手
 
 > 一个具备屏幕感知能力的可爱桌面AI助手
 
@@ -10,12 +10,12 @@
 
 ## 📖 项目简介
 
-导盲犬（IamDog）是一个创新的桌面AI助手，以可爱的金毛导盲犬形象出现在用户桌面上。它的核心创新在于**屏幕感知能力** - AI能够"看到"用户的屏幕内容，从而提供更智能、更贴合场景的辅助。
+灵析（Lingxi）是一个创新的桌面AI助手，以可爱的金毛犬形象出现在用户桌面上。它的核心创新在于**屏幕感知能力** - AI能够"看到"用户的屏幕内容，从而提供更智能、更贴合场景的辅助。
 
 ### 核心特性
 
 🐕 **可爱的桌面宠物**
-- 金毛导盲犬形象
+- 金毛犬形象
 - 静态图标，简洁友好
 - 左键点击打开对话，长按拖动位置
 - 初始位置在右下角
@@ -69,12 +69,7 @@
 
 ### 安装使用
 
-#### 方式一：一键启动（推荐）
-```bash
-./start.sh
-```
-
-#### 方式二：手动启动
+#### 开发模式
 ```bash
 # 安装依赖
 npm install
@@ -84,6 +79,23 @@ npm run dev
 
 # 在另一个终端启动 Electron
 npm run electron:dev
+```
+
+#### 生产模式（推荐）
+```bash
+# 构建并打包
+npm run build
+npm run electron:build
+
+# 安装应用
+# 方式1：直接运行
+open release/mac-arm64/灵析.app
+
+# 方式2：安装到应用程序文件夹
+cp -r release/mac-arm64/灵析.app /Applications/
+
+# 方式3：使用DMG安装包
+open release/灵析-0.1.0-arm64.dmg
 ```
 
 ### 首次配置
@@ -125,7 +137,7 @@ npm run electron:dev
 
 ### 与传统AI的区别
 
-| 特性 | 传统AI助手 | 导盲犬 |
+| 特性 | 传统AI助手 | 灵析 |
 |------|-----------|--------|
 | 交互方式 | 纯文本输入 | 文本 + 屏幕截图 |
 | 上下文理解 | 仅限对话历史 | 对话历史 + 视觉上下文 |
@@ -221,7 +233,7 @@ npm run electron:dev
 ### 对话窗口
 ```
                   ┌─────────────────────────────────────┐
-                  │  🐶 导盲犬助手                 [⚙️] [×] │
+                  │  🐶 灵析助手                 [⚙️] [×] │
                   ├─────────────────────────────────────┤
                   │                                     │
                   │  用户：这个API怎么用？               │
@@ -268,7 +280,7 @@ npm run electron:dev
 - **快捷键**：默认 Cmd+Shift+0
 
 ### 配置文件位置
-- macOS: `~/Library/Application Support/IamDog/config.json`
+- macOS: `~/Library/Application Support/lingxi/config.json`
 
 ---
 
@@ -308,7 +320,7 @@ npm run electron:dev
 ## 📞 联系方式
 
 - **负责人**：哈雅（263321）
-- **项目地址**：git@gitlab.alibaba-inc.com:haya.lhw/IamDog.git
+- **项目地址**：git@gitlab.alibaba-inc.com:haya.lhw/Lingxi.git
 
 ---
 

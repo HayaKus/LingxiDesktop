@@ -1,14 +1,27 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, clipboard } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import log from 'electron-log';
 import Store from 'electron-store';
+import { BucAuthService, BucUserInfo } from './bucAuth';
 
 // 配置日志
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
 
+// 应用日志文件路径
+const appLogPath = path.join(app.getPath('userData'), 'app.log');
+log.info(`Application log path: ${appLogPath}`);
+
 // 配置存储
-const store = new Store({
+interface StoreSchema {
+  apiKey: string;
+  model: string;
+  shortcut: string;
+  userInfo?: BucUserInfo;
+}
+
+const store = new Store<StoreSchema>({
   defaults: {
     apiKey: '',
     model: 'qwen-vl-max-latest',
@@ -32,7 +45,7 @@ interface ClipboardImage {
 let clipboardImageHistory: ClipboardImage[] = [];
 const IMAGE_LIFETIME = 30000; // 30秒
 
-// 添加图片到历史
+// 添加图片到历史（带压缩）
 function addClipboardImage(dataUrl: string) {
   // 检查是否已存在（避免重复）
   const exists = clipboardImageHistory.some(item => item.dataUrl === dataUrl);
@@ -55,6 +68,37 @@ function addClipboardImage(dataUrl: string) {
   
   clipboardImageHistory.push(image);
   log.info(`Clipboard image added. Total: ${clipboardImageHistory.length}, will expire in 30s`);
+}
+
+// 压缩图片（与截图使用相同的压缩策略）
+function compressImage(base64: string): string {
+  try {
+    const { nativeImage } = require('electron');
+    
+    // 从base64创建图片
+    const buffer = Buffer.from(base64, 'base64');
+    const image = nativeImage.createFromBuffer(buffer);
+    
+    const originalSize = image.getSize();
+    log.info(`Original clipboard image size: ${originalSize.width}x${originalSize.height}, ${base64.length} bytes`);
+    
+    // 缩放到50%
+    const newWidth = Math.floor(originalSize.width * 0.5);
+    const newHeight = Math.floor(originalSize.height * 0.5);
+    const resized = image.resize({ width: newWidth, height: newHeight });
+    
+    // 转换为JPEG格式，质量80%
+    const jpeg = resized.toJPEG(80);
+    const compressedBase64 = jpeg.toString('base64');
+    
+    log.info(`Compressed clipboard image to: ${newWidth}x${newHeight}, ${compressedBase64.length} bytes (${(compressedBase64.length / 1024 / 1024).toFixed(2)}MB)`);
+    
+    return `data:image/jpeg;base64,${compressedBase64}`;
+  } catch (error) {
+    log.error('Image compression failed:', error);
+    // 压缩失败则返回原图
+    return `data:image/png;base64,${base64}`;
+  }
 }
 
 // 删除图片
@@ -87,7 +131,7 @@ let lastClipboardImageHash: string | null = null;
 // 启动剪贴板监听（使用定时检查方式）
 function startClipboardMonitor() {
   try {
-    // 每500ms检查一次剪贴板
+    // 每1000ms检查一次剪贴板（降低频率，减少CPU占用）
     clipboardMonitorInterval = setInterval(() => {
       try {
         const image = clipboard.readImage();
@@ -101,18 +145,20 @@ function startClipboardMonitor() {
           
           if (hash !== lastClipboardImageHash) {
             lastClipboardImageHash = hash;
-            const dataUrl = `data:image/png;base64,${base64}`;
             
-            log.info(`📋 New clipboard image detected, size: ${base64.length} bytes`);
-            addClipboardImage(dataUrl);
+            log.info(`📋 New clipboard image detected, original size: ${base64.length} bytes`);
+            
+            // 压缩图片后再添加到历史
+            const compressedDataUrl = compressImage(base64);
+            addClipboardImage(compressedDataUrl);
           }
         }
       } catch (error) {
         // 静默处理错误，避免日志刷屏
       }
-    }, 500);
+    }, 1000);
     
-    log.info('✅ Clipboard monitor started (polling every 500ms)');
+    log.info('✅ Clipboard monitor started (polling every 1000ms)');
   } catch (error) {
     log.error('❌ Failed to start clipboard monitor:', error);
   }
@@ -251,8 +297,32 @@ function createChatWindow() {
   log.info('Chat window created');
 }
 
+// BUC 认证服务
+const bucAuth = new BucAuthService();
+
 // 应用启动
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  try {
+    // 检查是否已登录
+    const savedUser = store.get('userInfo') as BucUserInfo | undefined;
+    
+    if (!savedUser) {
+      log.info('🔐 未检测到登录信息，启动 BUC 登录流程...');
+      
+      // 启动 BUC 登录
+      const userInfo = await bucAuth.login();
+      
+      // 保存用户信息
+      store.set('userInfo', userInfo);
+      log.info('✅ 用户信息已保存:', userInfo);
+    } else {
+      log.info('✅ 检测到已登录用户:', savedUser);
+    }
+  } catch (error) {
+    log.error('❌ BUC 登录失败:', error);
+    // 登录失败也继续启动应用（开发阶段）
+  }
+  
   // 启动剪贴板监听
   startClipboardMonitor();
   
@@ -327,13 +397,13 @@ ipcMain.handle('capture-screen', async () => {
   try {
     const { desktopCapturer, screen, nativeImage } = require('electron');
     
-    // 获取导盲犬窗口的位置
+    // 获取灵析窗口的位置
     let petPosition = null;
     if (petWindow) {
       const [x, y] = petWindow.getPosition();
       const [width, height] = petWindow.getSize();
       petPosition = {
-        x: x + width / 2,  // 导盲犬中心点
+        x: x + width / 2,  // 灵析中心点
         y: y + height / 2,
       };
       log.info(`Pet window position: (${petPosition.x}, ${petPosition.y})`);
@@ -355,13 +425,13 @@ ipcMain.handle('capture-screen', async () => {
     
     let screenshot = null;
     
-    // 如果有导盲犬位置信息，尝试找到它下方的窗口
+    // 如果有灵析位置信息，尝试找到它下方的窗口
     if (petPosition) {
-      // 过滤掉导盲犬自己的窗口和对话窗口
+      // 过滤掉灵析自己的窗口和对话窗口
       const windowSources = sources.filter(source => {
         const name = source.name.toLowerCase();
-        const isOwnWindow = name.includes('iamdog') || 
-                           name.includes('导盲犬') ||
+        const isOwnWindow = name.includes('lingxi') || 
+                           name.includes('灵析') ||
                            name.includes('electron');
         
         if (isOwnWindow) {
@@ -378,7 +448,7 @@ ipcMain.handle('capture-screen', async () => {
         log.info(`Window ${index + 1}: ${source.name} (${source.id})`);
       });
       
-      // 选择第一个非导盲犬窗口（通常是用户正在使用的窗口）
+      // 选择第一个非灵析窗口（通常是用户正在使用的窗口）
       if (windowSources.length > 0) {
         const targetWindow = windowSources[0];
         log.info(`Selected window: ${targetWindow.name}`);
@@ -460,6 +530,54 @@ ipcMain.handle('save-config', async (event, config) => {
     return true;
   } catch (error) {
     log.error('Save config failed:', error);
+    throw error;
+  }
+});
+
+// 写入应用日志（异步，避免阻塞）
+ipcMain.handle('write-log', async (event, message) => {
+  try {
+    // 使用异步写入，避免阻塞主线程
+    await fs.promises.appendFile(appLogPath, message, 'utf8');
+  } catch (error) {
+    log.error('Write log failed:', error);
+  }
+});
+
+// 获取用户信息
+ipcMain.handle('get-user-info', async () => {
+  try {
+    const userInfo = store.get('userInfo') as BucUserInfo | undefined;
+    return userInfo || null;
+  } catch (error) {
+    log.error('Get user info failed:', error);
+    return null;
+  }
+});
+
+// 重新登录
+ipcMain.handle('buc-login', async () => {
+  try {
+    log.info('🔐 手动触发 BUC 登录...');
+    const userInfo = await bucAuth.login();
+    store.set('userInfo', userInfo);
+    log.info('✅ 登录成功:', userInfo);
+    return userInfo;
+  } catch (error) {
+    log.error('❌ 登录失败:', error);
+    throw error;
+  }
+});
+
+// 退出登录
+ipcMain.handle('buc-logout', async () => {
+  try {
+    log.info('👋 退出登录');
+    store.delete('userInfo');
+    bucAuth.cleanup();
+    return true;
+  } catch (error) {
+    log.error('Logout failed:', error);
     throw error;
   }
 });

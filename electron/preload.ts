@@ -41,7 +41,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showContextMenu: () => {
     ipcRenderer.send('show-context-menu');
   },
+
+  // 写入日志
+  writeLog: async (message: string): Promise<void> => {
+    return await ipcRenderer.invoke('write-log', message);
+  },
+
+  // 获取用户信息
+  getUserInfo: async (): Promise<any> => {
+    return await ipcRenderer.invoke('get-user-info');
+  },
+
+  // BUC 登录
+  bucLogin: async (): Promise<any> => {
+    return await ipcRenderer.invoke('buc-login');
+  },
+
+  // BUC 退出登录
+  bucLogout: async (): Promise<boolean> => {
+    return await ipcRenderer.invoke('buc-logout');
+  },
 });
+
+// 用户信息接口
+export interface BucUserInfo {
+  workid: string;
+  name: string;
+  email: string;
+  cname?: string;
+  empId?: string;
+}
 
 // 类型声明
 export interface ElectronAPI {
@@ -53,6 +82,10 @@ export interface ElectronAPI {
   saveConfig: (config: any) => Promise<void>;
   moveWindow: (deltaX: number, deltaY: number) => void;
   showContextMenu: () => void;
+  writeLog: (message: string) => Promise<void>;
+  getUserInfo: () => Promise<BucUserInfo | null>;
+  bucLogin: () => Promise<BucUserInfo>;
+  bucLogout: () => Promise<boolean>;
 }
 
 declare global {

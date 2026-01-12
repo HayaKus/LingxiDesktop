@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { ChatMessage } from '../../types';
+import { logger } from './logger';
 
 const SYSTEM_PROMPT = `你是一个桌面AI助手，以可爱的小狗形象出现。
 
@@ -74,20 +75,77 @@ export class AIService {
         ...messages,
       ];
 
+      logger.info('🚀 准备发送API请求');
+      logger.info(`   消息数量：${fullMessages.length} 条`);
+      logger.info(`   模型：qwen-vl-max-latest`);
+      
+      // 详细日志：每条消息的大小
+      fullMessages.forEach((msg, index) => {
+        const contentStr = typeof msg.content === 'string' 
+          ? msg.content 
+          : JSON.stringify(msg.content);
+        const size = contentStr.length;
+        logger.info(`   消息${index + 1} [${msg.role}]: ${size} 字符`);
+      });
+
       const stream = await this.client.chat.completions.create({
         model: 'qwen-vl-max-latest',
         messages: fullMessages as any,
         stream: true,
       });
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content;
-        if (content) {
-          yield content;
+      logger.info('✅ API请求成功，开始接收流式响应');
+
+      let chunkCount = 0;
+      let totalContent = 0;
+      const startTime = Date.now();
+      
+      try {
+        for await (const chunk of stream) {
+          chunkCount++;
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            totalContent += content.length;
+            yield content;
+          }
+          
+          // 每100个chunk记录一次进度
+          if (chunkCount % 100 === 0) {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            logger.info(`📊 流式响应进度：已接收 ${chunkCount} 个chunk，${totalContent} 字符，耗时 ${elapsed}s`);
+          }
         }
+        
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        logger.info(`✅ 流式响应接收完成：共 ${chunkCount} 个chunk，${totalContent} 字符，耗时 ${elapsed}s`);
+      } catch (streamError: any) {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        logger.error('❌ 流式响应中断：', {
+          errorType: streamError.constructor?.name || 'Unknown',
+          errorMessage: streamError.message || 'No message',
+          errorStack: streamError.stack,
+          chunkCount,
+          totalContent,
+          elapsed: `${elapsed}s`,
+          // 尝试获取更多错误信息
+          cause: streamError.cause,
+          code: streamError.code,
+          errno: streamError.errno,
+          syscall: streamError.syscall,
+        });
+        throw streamError;
       }
-    } catch (error) {
-      console.error('AI Service error:', error);
+    } catch (error: any) {
+      logger.error('❌ AI Service 错误详情：', {
+        errorType: error.constructor.name,
+        errorMessage: error.message,
+        httpStatus: error.response?.status,
+        responseData: error.response?.data,
+        errorCode: error.code,
+        errorTypeField: error.type,
+        fullError: error,
+      });
+      
       if (onError) {
         onError(error as Error);
       }

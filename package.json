@@ -1,7 +1,7 @@
 {
-  "name": "guide-dog",
+  "name": "lingxi",
   "version": "0.1.0",
-  "description": "导盲犬 - 具备屏幕感知能力的桌面AI助手",
+  "description": "灵析 - 具备屏幕感知能力的桌面AI助手",
   "main": "dist/electron/main.js",
   "author": "哈雅 (263321)",
   "license": "ISC",
@@ -45,8 +45,8 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.alibaba.guidedog",
-    "productName": "导盲犬",
+    "appId": "com.alibaba.lingxi",
+    "productName": "灵析",
     "directories": {
       "output": "release"
     },
@@ -56,6 +56,7 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "materials/image/icon_dog_2.png",
       "target": [
         "dmg",
         "zip"

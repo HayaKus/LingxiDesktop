@@ -9,6 +9,7 @@ interface ChatState {
   includeClipboard: boolean;
   autoClipboard: boolean;
   knowledge: string;
+  contextTrimNotice: string | null; // 上下文裁剪提示
   
   // Actions
   addMessage: (message: Message) => void;
@@ -20,6 +21,7 @@ interface ChatState {
   setIncludeClipboard: (include: boolean) => void;
   setAutoClipboard: (auto: boolean) => void;
   setKnowledge: (knowledge: string) => void;
+  setContextTrimNotice: (notice: string | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -30,6 +32,7 @@ export const useChatStore = create<ChatState>((set) => ({
   includeClipboard: false,
   autoClipboard: true,
   knowledge: '',
+  contextTrimNotice: null,
 
   addMessage: (message) =>
     set((state) => ({
@@ -81,5 +84,10 @@ export const useChatStore = create<ChatState>((set) => ({
   setKnowledge: (knowledge) =>
     set({
       knowledge,
+    }),
+
+  setContextTrimNotice: (notice) =>
+    set({
+      contextTrimNotice: notice,
     }),
 }));
