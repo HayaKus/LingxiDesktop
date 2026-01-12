@@ -2,6 +2,20 @@ import React, { useState } from 'react';
 import { useChatStore } from '../store/chatStore';
 import { aiService } from '../utils/aiService';
 import { generateId, convertToChatMessage, formatError } from '../utils/helpers';
+import { intelligentContextManagement } from '../utils/contextManager';
+
+// 提取AI建议回复的内容
+// 匹配系统提示词中要求的标准格式：建议回复："xxx"
+function extractSuggestedReply(aiResponse: string): string | null {
+  const pattern = /建议回复[：:]\s*["""']([^"""']+)["""']/i;
+  const match = aiResponse.match(pattern);
+  
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+
+  return null;
+}
 
 export function InputArea() {
   const [input, setInput] = useState('');
@@ -11,12 +25,15 @@ export function InputArea() {
     isLoading,
     includeScreenshot,
     includeClipboard,
+    autoClipboard,
+    knowledge,
     addMessage,
     updateLastMessage,
     setLoading,
     setError,
     setIncludeScreenshot,
     setIncludeClipboard,
+    setAutoClipboard,
   } = useChatStore();
 
   // 自动聚焦输入框
@@ -24,11 +41,12 @@ export function InputArea() {
     textareaRef.current?.focus();
   }, []);
 
-  // 默认勾选两个选项
+  // 默认勾选选项
   React.useEffect(() => {
     setIncludeScreenshot(true);
     setIncludeClipboard(true);
-  }, [setIncludeScreenshot, setIncludeClipboard]);
+    setAutoClipboard(true);
+  }, [setIncludeScreenshot, setIncludeClipboard, setAutoClipboard]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -39,14 +57,17 @@ export function InputArea() {
     setError(null);
 
     try {
-      // 收集图片（支持多张）
-      const imageUrls: string[] = [];
+      // 分别收集窗口截图和粘贴板截图
+      const screenshotImageUrls: string[] = [];
+      const clipboardImageUrls: string[] = [];
+      const allImageUrls: string[] = [];
 
-      // 收集截图
+      // 收集窗口截图（不显示给用户，但发送给AI）
       if (includeScreenshot) {
         try {
           const screenshot = await window.electronAPI.captureScreen();
-          imageUrls.push(screenshot);
+          screenshotImageUrls.push(screenshot);
+          allImageUrls.push(screenshot);
         } catch (error) {
           console.error('Screenshot failed:', error);
           setError('截图失败，请检查屏幕录制权限');
@@ -55,33 +76,68 @@ export function InputArea() {
         }
       }
 
-      // 收集剪贴板图片（如果没有图片就跳过，不报错）
+      // 收集剪贴板图片（显示给用户）- 现在返回历史中的所有图片
       if (includeClipboard) {
         try {
-          const clipboardImage = await window.electronAPI.readClipboardImage();
-          if (clipboardImage) {
-            imageUrls.push(clipboardImage);
+          const clipboardImages = await window.electronAPI.readClipboardImage();
+          console.log('📋 Clipboard images received:', clipboardImages);
+          
+          // 兼容处理：可能返回数组或空数组
+          if (clipboardImages && Array.isArray(clipboardImages) && clipboardImages.length > 0) {
+            console.log(`✅ Found ${clipboardImages.length} clipboard images`);
+            clipboardImageUrls.push(...clipboardImages);
+            allImageUrls.push(...clipboardImages);
+          } else {
+            console.log('ℹ️ No clipboard images in history');
           }
           // 如果剪贴板没有图片，静默跳过，不报错
         } catch (error) {
-          console.error('Read clipboard failed:', error);
+          console.error('❌ Read clipboard failed:', error);
           // 读取失败也不报错，静默跳过
         }
       }
 
-      // 添加用户消息
+      // 添加用户消息（不包含任何图片显示）
       const newUserMessage = {
         id: generateId(),
         role: 'user' as const,
         content: userMessage,
-        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        imageUrls: allImageUrls.length > 0 ? allImageUrls : undefined,  // 发送给AI的所有图片
         timestamp: Date.now(),
       };
       addMessage(newUserMessage);
 
-      // 准备 AI 请求
-      const chatMessages = messages
-        .slice(-10) // 只保留最近10条
+      // 如果有粘贴板截图，添加一条AI消息来显示（让它看起来像AI看到了粘贴板）
+      if (clipboardImageUrls.length > 0) {
+        addMessage({
+          id: generateId(),
+          role: 'assistant',
+          content: '📋 我看到了你粘贴板中的截图：',
+          clipboardImageUrls: clipboardImageUrls,
+          timestamp: Date.now(),
+        });
+      }
+
+      // ✅ 智能上下文管理：动态裁剪历史消息
+      console.log('\n🔄 开始上下文管理...');
+      const { trimmedMessages, stats } = intelligentContextManagement(
+        messages,
+        newUserMessage,
+        knowledge
+      );
+      
+      // 静默裁剪，仅日志输出
+      if (stats.removedCount > 0) {
+        console.log(`\n📊 上下文优化统计：`);
+        console.log(`   原始消息：${stats.originalCount} 条 (${stats.originalTokens.toLocaleString()} tokens)`);
+        console.log(`   保留消息：${stats.trimmedCount} 条 (${stats.trimmedTokens.toLocaleString()} tokens)`);
+        console.log(`   移除消息：${stats.removedCount} 条`);
+        console.log(`   目标窗口：${stats.targetTokens.toLocaleString()} tokens`);
+        console.log(`   使用率：${((stats.trimmedTokens / stats.targetTokens) * 100).toFixed(1)}%\n`);
+      }
+      
+      // 准备 AI 请求 - 使用裁剪后的历史消息
+      const chatMessages = trimmedMessages
         .map(convertToChatMessage);
       chatMessages.push(convertToChatMessage(newUserMessage));
 
@@ -96,12 +152,32 @@ export function InputArea() {
 
       // 流式接收 AI 响应
       let fullResponse = '';
-      for await (const chunk of aiService.chat(chatMessages, (error) => {
+      for await (const chunk of aiService.chat(chatMessages, knowledge, (error) => {
         setError(formatError(error));
       })) {
         fullResponse += chunk;
         updateLastMessage(fullResponse);
       }
+
+      // 如果开启了自动复制到粘贴板，智能提取AI建议的回复内容
+      if (autoClipboard && fullResponse) {
+        const suggestedReply = extractSuggestedReply(fullResponse);
+        if (suggestedReply) {
+          try {
+            await navigator.clipboard.writeText(suggestedReply);
+            console.log('✅ 已提取建议回复并复制到粘贴板:', suggestedReply);
+          } catch (error) {
+            console.error('复制到粘贴板失败:', error);
+            // 复制失败不影响主流程，静默处理
+          }
+        } else {
+          console.log('ℹ️ AI回复中未找到建议回复内容');
+        }
+      }
+
+      // ✅ AI回复完成后，自动取消勾选截图选项，避免重复发送相同截图
+      setIncludeScreenshot(false);
+      setIncludeClipboard(false);
 
       setLoading(false);
     } catch (error: any) {
@@ -121,7 +197,7 @@ export function InputArea() {
   return (
     <div className="border-t border-gray-200 p-4 bg-white">
       {/* 选项 */}
-      <div className="flex gap-4 mb-3">
+      <div className="flex gap-4 mb-3 flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -130,7 +206,7 @@ export function InputArea() {
             disabled={isLoading}
             className="w-4 h-4"
           />
-          <span className="text-sm text-gray-700">📷 包含当前屏幕</span>
+          <span className="text-sm text-gray-700">允许对话期间查看屏幕</span>
         </label>
 
         <label className="flex items-center gap-2 cursor-pointer">
@@ -141,7 +217,18 @@ export function InputArea() {
             disabled={isLoading}
             className="w-4 h-4"
           />
-          <span className="text-sm text-gray-700">📋 粘贴板截图</span>
+          <span className="text-sm text-gray-700">允许对话期间查看粘贴板</span>
+        </label>
+
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={autoClipboard}
+            onChange={(e) => setAutoClipboard(e.target.checked)}
+            disabled={isLoading}
+            className="w-4 h-4"
+          />
+          <span className="text-sm text-gray-700">将AI建议回答复制到粘贴板</span>
         </label>
       </div>
 

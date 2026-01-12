@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message } from '../../types';
@@ -37,9 +38,11 @@ export function MessageItem({ message }: MessageItemProps) {
           {isUser ? (
             <div>
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
-              {/* 显示多张图片 */}
+              {/* 只显示粘贴板截图，不显示窗口截图 */}
               {(() => {
-                const images = message.imageUrls || (message.imageUrl ? [message.imageUrl] : []);
+                // 优先使用 clipboardImageUrls（只显示粘贴板截图）
+                // 如果没有，则使用旧的 imageUrl 字段（向后兼容）
+                const images = message.clipboardImageUrls || (message.imageUrl ? [message.imageUrl] : []);
                 if (images.length > 0) {
                   return (
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -60,29 +63,52 @@ export function MessageItem({ message }: MessageItemProps) {
             </div>
           ) : (
             /* AI 消息 - Markdown 渲染 */
-            <div className="prose prose-sm max-w-none">
-              <ReactMarkdown
-                components={{
-                  code({ node, inline, className, children, ...props }: any) {
-                    const match = /language-(\w+)/.exec(className || '');
-                    return !inline && match ? (
-                      <SyntaxHighlighter
-                        style={vscDarkPlus as any}
-                        language={match[1]}
-                        PreTag="div"
-                      >
-                        {String(children).replace(/\n$/, '')}
-                      </SyntaxHighlighter>
-                    ) : (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    );
-                  },
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
+            <div>
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    code({ node, inline, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      return !inline && match ? (
+                        <SyntaxHighlighter
+                          style={vscDarkPlus as any}
+                          language={match[1]}
+                          PreTag="div"
+                        >
+                          {String(children).replace(/\n$/, '')}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      );
+                    },
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+              {/* AI消息也可以显示粘贴板截图 */}
+              {(() => {
+                const images = message.clipboardImageUrls || [];
+                if (images.length > 0) {
+                  return (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {images.map((url, index) => (
+                        <img
+                          key={index}
+                          src={url}
+                          alt={`粘贴板截图 ${index + 1}`}
+                          className="max-w-full rounded border border-gray-200"
+                          style={{ maxHeight: '200px' }}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           )}
         </div>

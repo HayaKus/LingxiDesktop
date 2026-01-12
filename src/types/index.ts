@@ -5,6 +5,8 @@ export interface Message {
   content: string;
   imageUrl?: string;  // 保留用于向后兼容
   imageUrls?: string[];  // 新增：支持多张图片
+  screenshotImageUrls?: string[];  // 窗口截图（不显示给用户，但发送给AI）
+  clipboardImageUrls?: string[];  // 粘贴板截图（显示给用户）
   timestamp: number;
 }
 

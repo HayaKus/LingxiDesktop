@@ -47,7 +47,7 @@
   <body>
     <div class="pet-container" id="petContainer">
       <img
-        src="../materials/image/icon_dog.png"
+        src="./assets/icon_dog-BCHvmQuU.png"
         alt="导盲犬"
         class="pet-image"
         id="petImage"
@@ -126,9 +126,12 @@
         }
       });
 
-      // 禁用右键菜单
+      // 右键菜单
       document.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        if (window.electronAPI && window.electronAPI.showContextMenu) {
+          window.electronAPI.showContextMenu();
+        }
       });
     </script>
   </body>

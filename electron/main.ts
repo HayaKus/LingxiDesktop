@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, clipboard } from 'electron';
 import path from 'path';
 import log from 'electron-log';
 import Store from 'electron-store';
@@ -21,6 +21,113 @@ let petWindow: BrowserWindow | null = null;
 let chatWindow: BrowserWindow | null = null;
 
 const isDev = !app.isPackaged;
+
+// 剪贴板历史管理
+interface ClipboardImage {
+  dataUrl: string;
+  timestamp: number;
+  timerId: NodeJS.Timeout;
+}
+
+let clipboardImageHistory: ClipboardImage[] = [];
+const IMAGE_LIFETIME = 30000; // 30秒
+
+// 添加图片到历史
+function addClipboardImage(dataUrl: string) {
+  // 检查是否已存在（避免重复）
+  const exists = clipboardImageHistory.some(item => item.dataUrl === dataUrl);
+  if (exists) {
+    log.info('Image already in history, skipping');
+    return;
+  }
+
+  // 创建定时器，30秒后自动删除
+  const timerId = setTimeout(() => {
+    removeClipboardImage(dataUrl);
+  }, IMAGE_LIFETIME);
+
+  // 添加到历史
+  const image: ClipboardImage = {
+    dataUrl,
+    timestamp: Date.now(),
+    timerId,
+  };
+  
+  clipboardImageHistory.push(image);
+  log.info(`Clipboard image added. Total: ${clipboardImageHistory.length}, will expire in 30s`);
+}
+
+// 删除图片
+function removeClipboardImage(dataUrl: string) {
+  const index = clipboardImageHistory.findIndex(item => item.dataUrl === dataUrl);
+  if (index !== -1) {
+    const image = clipboardImageHistory[index];
+    clearTimeout(image.timerId);
+    clipboardImageHistory.splice(index, 1);
+    log.info(`Clipboard image removed. Remaining: ${clipboardImageHistory.length}`);
+  }
+}
+
+// 获取所有有效的历史图片
+function getClipboardHistory(): string[] {
+  return clipboardImageHistory.map(item => item.dataUrl);
+}
+
+// 清空历史
+function clearClipboardHistory() {
+  clipboardImageHistory.forEach(item => clearTimeout(item.timerId));
+  clipboardImageHistory = [];
+  log.info('Clipboard history cleared');
+}
+
+// 剪贴板监听器
+let clipboardMonitorInterval: NodeJS.Timeout | null = null;
+let lastClipboardImageHash: string | null = null;
+
+// 启动剪贴板监听（使用定时检查方式）
+function startClipboardMonitor() {
+  try {
+    // 每500ms检查一次剪贴板
+    clipboardMonitorInterval = setInterval(() => {
+      try {
+        const image = clipboard.readImage();
+        
+        if (!image.isEmpty()) {
+          const png = image.toPNG();
+          const base64 = png.toString('base64');
+          
+          // 使用hash来检测是否是新图片（避免重复添加）
+          const hash = base64.substring(0, 100); // 使用前100个字符作为简单hash
+          
+          if (hash !== lastClipboardImageHash) {
+            lastClipboardImageHash = hash;
+            const dataUrl = `data:image/png;base64,${base64}`;
+            
+            log.info(`📋 New clipboard image detected, size: ${base64.length} bytes`);
+            addClipboardImage(dataUrl);
+          }
+        }
+      } catch (error) {
+        // 静默处理错误，避免日志刷屏
+      }
+    }, 500);
+    
+    log.info('✅ Clipboard monitor started (polling every 500ms)');
+  } catch (error) {
+    log.error('❌ Failed to start clipboard monitor:', error);
+  }
+}
+
+// 停止剪贴板监听
+function stopClipboardMonitor() {
+  if (clipboardMonitorInterval) {
+    clearInterval(clipboardMonitorInterval);
+    clipboardMonitorInterval = null;
+  }
+  clearClipboardHistory();
+  lastClipboardImageHash = null;
+  log.info('Clipboard monitor stopped');
+}
 
 // 创建宠物窗口
 function createPetWindow() {
@@ -63,7 +170,7 @@ function createPetWindow() {
   if (isDev) {
     petWindow.loadURL('http://localhost:5173/pet.html');
   } else {
-    petWindow.loadFile(path.join(__dirname, '../../public/pet.html'));
+    petWindow.loadFile(path.join(__dirname, '../renderer/pet.html'));
   }
 
   petWindow.on('closed', () => {
@@ -146,6 +253,9 @@ function createChatWindow() {
 
 // 应用启动
 app.whenReady().then(() => {
+  // 启动剪贴板监听
+  startClipboardMonitor();
+  
   createPetWindow();
 
   // 注册全局快捷键 Cmd+Shift+0
@@ -163,6 +273,22 @@ app.whenReady().then(() => {
       createPetWindow();
     }
   });
+});
+
+// 创建右键菜单
+ipcMain.on('show-context-menu', () => {
+  const { Menu } = require('electron');
+  
+  const menu = Menu.buildFromTemplate([
+    {
+      label: '退出',
+      click: () => {
+        app.quit();
+      }
+    }
+  ]);
+  
+  menu.popup();
 });
 
 // 所有窗口关闭时退出（macOS 除外）
@@ -199,7 +325,7 @@ ipcMain.on('move-pet-window', (event, deltaX, deltaY) => {
 // 截图请求 - 智能截取当前窗口
 ipcMain.handle('capture-screen', async () => {
   try {
-    const { desktopCapturer, screen } = require('electron');
+    const { desktopCapturer, screen, nativeImage } = require('electron');
     
     // 获取导盲犬窗口的位置
     let petPosition = null;
@@ -226,6 +352,8 @@ ipcMain.handle('capture-screen', async () => {
     }
 
     log.info(`Found ${sources.length} sources`);
+    
+    let screenshot = null;
     
     // 如果有导盲犬位置信息，尝试找到它下方的窗口
     if (petPosition) {
@@ -256,17 +384,15 @@ ipcMain.handle('capture-screen', async () => {
         log.info(`Selected window: ${targetWindow.name}`);
         
         try {
-          const screenshot = targetWindow.thumbnail.toPNG();
-          const base64 = screenshot.toString('base64');
-          log.info(`Window screenshot size: ${base64.length} bytes`);
+          screenshot = targetWindow.thumbnail;
+          const pngSize = screenshot.toPNG().length;
+          log.info(`Original window screenshot size: ${pngSize} bytes`);
           
           // 如果截图大小为0，说明没有权限或截图失败
-          if (base64.length === 0) {
+          if (pngSize === 0) {
             log.error('Window screenshot is empty - Screen Recording permission required');
             throw new Error('需要授予"屏幕录制"权限才能截取窗口。\n请前往：系统偏好设置 → 安全性与隐私 → 隐私 → 屏幕录制，勾选 Electron');
           }
-          
-          return `data:image/png;base64,${base64}`;
         } catch (error) {
           log.error(`Failed to capture window ${targetWindow.name}:`, error);
           throw error;
@@ -275,31 +401,41 @@ ipcMain.handle('capture-screen', async () => {
     }
     
     // Fallback: 使用屏幕截图
-    log.info('Fallback to screen capture');
-    const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
-    const screenshot = screenSource.thumbnail.toPNG();
-    const base64 = screenshot.toString('base64');
+    if (!screenshot) {
+      log.info('Fallback to screen capture');
+      const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+      screenshot = screenSource.thumbnail;
+    }
     
-    return `data:image/png;base64,${base64}`;
+    // 压缩图片：缩放到50% + JPEG 80%质量
+    const originalSize = screenshot.getSize();
+    log.info(`Original size: ${originalSize.width}x${originalSize.height}`);
+    
+    // 缩放到50%
+    const newWidth = Math.floor(originalSize.width * 0.5);
+    const newHeight = Math.floor(originalSize.height * 0.5);
+    const resized = screenshot.resize({ width: newWidth, height: newHeight });
+    log.info(`Resized to: ${newWidth}x${newHeight}`);
+    
+    // 转换为JPEG格式，质量80%
+    const jpeg = resized.toJPEG(80);
+    const base64 = jpeg.toString('base64');
+    log.info(`Compressed screenshot size: ${base64.length} bytes (${(base64.length / 1024 / 1024).toFixed(2)}MB)`);
+    
+    return `data:image/jpeg;base64,${base64}`;
   } catch (error) {
     log.error('Screenshot failed:', error);
     throw error;
   }
 });
 
-// 读取剪贴板图片
+// 读取剪贴板图片（返回历史中的所有图片）
 ipcMain.handle('read-clipboard-image', async () => {
   try {
-    const { clipboard, nativeImage } = require('electron');
-    const image = clipboard.readImage();
-
-    if (image.isEmpty()) {
-      return null;
-    }
-
-    const png = image.toPNG();
-    const base64 = png.toString('base64');
-    return `data:image/png;base64,${base64}`;
+    // 返回历史中的所有图片
+    const history = getClipboardHistory();
+    log.info(`Returning ${history.length} clipboard images from history`);
+    return history;
   } catch (error) {
     log.error('Read clipboard failed:', error);
     throw error;

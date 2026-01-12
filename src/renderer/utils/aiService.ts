@@ -18,11 +18,22 @@ const SYSTEM_PROMPT = `你是一个桌面AI助手，以可爱的小狗形象出�
 - 如果用户没有提供截图，礼貌地提醒
 - 如果截图内容不清晰，说明你看到了什么
 - 回答时使用 Markdown 格式
-- 代码块要指定语言以便高亮`;
+- 代码块要指定语言以便高亮
+
+**重要：建议回复格式**
+当你需要建议用户回复某人或输出某段内容时，请严格按照以下格式输出：
+
+建议回复："这里是具体的回复内容"
+
+例如：
+- 建议回复："好的，我会尽快处理"
+- 建议回复："收到，谢谢提醒"
+- 建议回复："明白了，我会注意的"
+
+只有使用这个格式，系统才能自动将建议内容复制到用户的粘贴板中，方便用户直接粘贴使用。`;
 
 export class AIService {
   private client: OpenAI | null = null;
-  private apiKey: string = '';
 
   constructor(apiKey?: string) {
     if (apiKey) {
@@ -31,7 +42,6 @@ export class AIService {
   }
 
   initialize(apiKey: string) {
-    this.apiKey = apiKey;
     this.client = new OpenAI({
       apiKey,
       baseURL: 'https://idealab.alibaba-inc.com/api/openai/v1',
@@ -41,6 +51,7 @@ export class AIService {
 
   async *chat(
     messages: ChatMessage[],
+    knowledge?: string,
     onError?: (error: Error) => void
   ): AsyncGenerator<string, void, unknown> {
     if (!this.client) {
@@ -48,11 +59,17 @@ export class AIService {
     }
 
     try {
+      // 构建系统提示词
+      let systemPrompt = SYSTEM_PROMPT;
+      if (knowledge && knowledge.trim()) {
+        systemPrompt += `\n\n**背景知识**\n${knowledge.trim()}`;
+      }
+
       // 添加系统提示词
       const fullMessages: ChatMessage[] = [
         {
           role: 'system',
-          content: SYSTEM_PROMPT,
+          content: systemPrompt,
         },
         ...messages,
       ];

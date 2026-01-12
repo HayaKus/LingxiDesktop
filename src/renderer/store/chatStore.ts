@@ -7,6 +7,8 @@ interface ChatState {
   error: string | null;
   includeScreenshot: boolean;
   includeClipboard: boolean;
+  autoClipboard: boolean;
+  knowledge: string;
   
   // Actions
   addMessage: (message: Message) => void;
@@ -16,6 +18,8 @@ interface ChatState {
   setError: (error: string | null) => void;
   setIncludeScreenshot: (include: boolean) => void;
   setIncludeClipboard: (include: boolean) => void;
+  setAutoClipboard: (auto: boolean) => void;
+  setKnowledge: (knowledge: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -24,6 +28,8 @@ export const useChatStore = create<ChatState>((set) => ({
   error: null,
   includeScreenshot: false,
   includeClipboard: false,
+  autoClipboard: true,
+  knowledge: '',
 
   addMessage: (message) =>
     set((state) => ({
@@ -65,5 +71,15 @@ export const useChatStore = create<ChatState>((set) => ({
   setIncludeClipboard: (include) =>
     set({
       includeClipboard: include,
+    }),
+
+  setAutoClipboard: (auto) =>
+    set({
+      autoClipboard: auto,
+    }),
+
+  setKnowledge: (knowledge) =>
+    set({
+      knowledge,
     }),
 }));

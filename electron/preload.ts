@@ -36,6 +36,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   moveWindow: (deltaX: number, deltaY: number) => {
     ipcRenderer.send('move-pet-window', deltaX, deltaY);
   },
+
+  // 显示右键菜单
+  showContextMenu: () => {
+    ipcRenderer.send('show-context-menu');
+  },
 });
 
 // 类型声明
@@ -47,6 +52,7 @@ export interface ElectronAPI {
   getConfig: () => Promise<any>;
   saveConfig: (config: any) => Promise<void>;
   moveWindow: (deltaX: number, deltaY: number) => void;
+  showContextMenu: () => void;
 }
 
 declare global {
