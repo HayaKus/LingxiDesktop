@@ -28,4 +28,36 @@
   .input-field {
     @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500;
   }
+
+  /* 覆盖 prose 的默认 max-width，确保内容自适应 */
+  .prose {
+    max-width: 100% !important;
+  }
+
+  .prose p,
+  .prose ul,
+  .prose ol,
+  .prose pre,
+  .prose blockquote {
+    max-width: 100% !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .prose pre {
+    overflow-x: auto !important;
+  }
+
+  /* 内联代码强制换行 */
+  .prose code {
+    word-break: break-all !important;
+    overflow-wrap: break-word !important;
+    white-space: pre-wrap !important;
+  }
+
+  /* 代码块可以横向滚动 */
+  .prose pre code {
+    word-break: normal !important;
+    white-space: pre !important;
+  }
 }

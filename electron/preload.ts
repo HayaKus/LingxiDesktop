@@ -61,6 +61,89 @@ contextBridge.exposeInMainWorld('electronAPI', {
   bucLogout: async (): Promise<boolean> => {
     return await ipcRenderer.invoke('buc-logout');
   },
+
+  // ============ 会话管理 API ============
+  
+  // 创建新会话
+  sessionCreate: async (): Promise<any> => {
+    return await ipcRenderer.invoke('session:create');
+  },
+
+  // 开始 AI 请求
+  sessionStartAI: async (sessionId: string, messages: any[], userMessage: string, imageCount: number): Promise<boolean> => {
+    return await ipcRenderer.invoke('session:start-ai', sessionId, messages, userMessage, imageCount);
+  },
+
+  // 获取会话详情
+  sessionGet: async (sessionId: string): Promise<any> => {
+    return await ipcRenderer.invoke('session:get', sessionId);
+  },
+
+  // 获取所有会话
+  sessionGetAll: async (): Promise<any[]> => {
+    return await ipcRenderer.invoke('session:get-all');
+  },
+
+  // 删除会话
+  sessionDelete: async (sessionId: string): Promise<boolean> => {
+    return await ipcRenderer.invoke('session:delete', sessionId);
+  },
+
+  // 监听会话更新
+  onSessionUpdate: (callback: (data: any) => void) => {
+    ipcRenderer.on('session-update', (event, data) => callback(data));
+  },
+
+  // 移除会话更新监听
+  offSessionUpdate: (callback: (data: any) => void) => {
+    ipcRenderer.removeListener('session-update', callback);
+  },
+
+  // ============ 命令执行 API ============
+  
+  // 执行命令（简单模式）
+  commandExecute: async (command: string, options?: any): Promise<any> => {
+    return await ipcRenderer.invoke('command:execute', command, options);
+  },
+  
+  // 执行命令（流式模式）
+  commandExecuteStream: async (executionId: string, command: string, args: string[], options?: any): Promise<any> => {
+    return await ipcRenderer.invoke('command:execute-stream', executionId, command, args, options);
+  },
+  
+  // 取消命令执行
+  commandCancel: async (executionId: string): Promise<boolean> => {
+    return await ipcRenderer.invoke('command:cancel', executionId);
+  },
+  
+  // 检查命令安全性
+  commandCheckSecurity: async (command: string): Promise<any> => {
+    return await ipcRenderer.invoke('command:check-security', command);
+  },
+  
+  // 获取正在运行的命令
+  commandGetRunning: async (): Promise<string[]> => {
+    return await ipcRenderer.invoke('command:get-running');
+  },
+  
+  // 监听命令输出
+  onCommandStdout: (callback: (executionId: string, data: string) => void) => {
+    ipcRenderer.on('command:stdout', (event, executionId, data) => callback(executionId, data));
+  },
+  
+  // 监听命令错误输出
+  onCommandStderr: (callback: (executionId: string, data: string) => void) => {
+    ipcRenderer.on('command:stderr', (event, executionId, data) => callback(executionId, data));
+  },
+  
+  // 移除监听器
+  offCommandStdout: (callback: any) => {
+    ipcRenderer.removeListener('command:stdout', callback);
+  },
+  
+  offCommandStderr: (callback: any) => {
+    ipcRenderer.removeListener('command:stderr', callback);
+  },
 });
 
 // 用户信息接口
@@ -86,6 +169,15 @@ export interface ElectronAPI {
   getUserInfo: () => Promise<BucUserInfo | null>;
   bucLogin: () => Promise<BucUserInfo>;
   bucLogout: () => Promise<boolean>;
+  
+  // 会话管理
+  sessionCreate: () => Promise<any>;
+  sessionStartAI: (sessionId: string, messages: any[], userMessage: string, imageCount: number) => Promise<boolean>;
+  sessionGet: (sessionId: string) => Promise<any>;
+  sessionGetAll: () => Promise<any[]>;
+  sessionDelete: (sessionId: string) => Promise<boolean>;
+  onSessionUpdate: (callback: (data: any) => void) => void;
+  offSessionUpdate: (callback: (data: any) => void) => void;
 }
 
 declare global {

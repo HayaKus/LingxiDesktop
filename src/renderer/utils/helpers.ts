@@ -26,7 +26,7 @@ export function convertToChatMessage(message: Message): ChatMessage {
   
   if (images.length > 0) {
     const content: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = [
-      { type: 'text', text: message.content },
+      { type: 'text', text: message.content || '' },
     ];
     
     // 添加所有图片
@@ -45,7 +45,7 @@ export function convertToChatMessage(message: Message): ChatMessage {
 
   return {
     role: message.role as 'user' | 'assistant' | 'system',
-    content: message.content,
+    content: message.content || '',
   };
 }
 

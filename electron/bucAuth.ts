@@ -24,6 +24,19 @@ export interface BucUserInfo {
   accountId?: number;  // 账号ID
 }
 
+export interface TokenInfo {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;        // 过期时间（秒）
+  token_created_at: number;  // token创建时间戳
+  token_type: string;        // 通常是 "Bearer"
+}
+
+export interface UserSession {
+  userInfo: BucUserInfo;
+  tokenInfo: TokenInfo;
+}
+
 export class BucAuthService {
   private server: http.Server | null = null;
   private readonly CALLBACK_PORT = 8888;
@@ -43,9 +56,9 @@ export class BucAuthService {
   };
 
   /**
-   * 启动登录流程
+   * 启动登录流程，返回完整的会话信息
    */
-  async login(): Promise<BucUserInfo> {
+  async login(): Promise<UserSession> {
     try {
       log.info('🔐 开始 BUC OAuth 2.0 登录流程...');
       
@@ -53,15 +66,24 @@ export class BucAuthService {
       const code = await this.startAuthServer();
       log.info('✅ 获取到授权码:', code);
       
-      // 2. 使用 code 换取 access_token
-      const accessToken = await this.getAccessToken(code);
-      log.info('✅ 获取到 access_token');
+      // 2. 使用 code 换取 token 信息
+      const tokenInfo = await this.getAccessToken(code);
+      log.info('✅ 获取到 token 信息');
       
       // 3. 使用 access_token 获取用户信息
-      const userInfo = await this.getUserInfo(accessToken);
+      const userInfo = await this.getUserInfo(tokenInfo.access_token);
       
-      log.info('✅ BUC 登录成功:', userInfo);
-      return userInfo;
+      const session: UserSession = {
+        userInfo,
+        tokenInfo,
+      };
+      
+      log.info('✅ BUC 登录成功:', {
+        user: userInfo.name,
+        tokenExpires: new Date(tokenInfo.token_created_at + tokenInfo.expires_in * 1000).toISOString(),
+      });
+      
+      return session;
     } catch (error) {
       log.error('❌ BUC 登录失败:', error);
       throw error;
@@ -246,11 +268,11 @@ export class BucAuthService {
   }
 
   /**
-   * 使用授权码换取 access_token
+   * 使用授权码换取 token 信息
    */
-  private async getAccessToken(code: string): Promise<string> {
+  private async getAccessToken(code: string): Promise<TokenInfo> {
     try {
-      log.info('📡 使用授权码换取 access_token...');
+      log.info('📡 使用授权码换取 token...');
       
       const redirectUri = `http://localhost:${this.CALLBACK_PORT}/callback`;
       
@@ -273,20 +295,92 @@ export class BucAuthService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`获取 access_token 失败: ${response.status} - ${errorText}`);
+        throw new Error(`获取 token 失败: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
       
       if (data.error) {
-        throw new Error(`获取 access_token 失败: ${data.error} - ${data.error_description}`);
+        throw new Error(`获取 token 失败: ${data.error} - ${data.error_description}`);
       }
 
-      return data.access_token;
+      // 构建 TokenInfo
+      const tokenInfo: TokenInfo = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_in: data.expires_in || 7200,  // 默认2小时
+        token_created_at: Date.now(),
+        token_type: data.token_type || 'Bearer',
+      };
+
+      return tokenInfo;
     } catch (error) {
-      log.error('❌ 获取 access_token 失败:', error);
+      log.error('❌ 获取 token 失败:', error);
       throw error;
     }
+  }
+
+  /**
+   * 使用 refresh_token 刷新 access_token
+   */
+  async refreshAccessToken(refreshToken: string): Promise<TokenInfo> {
+    try {
+      log.info('🔄 使用 refresh_token 刷新 access_token...');
+      
+      // 构建请求参数
+      const params = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+      });
+
+      const response = await fetch(this.config.tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        },
+        body: params.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`刷新 token 失败: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(`刷新 token 失败: ${data.error} - ${data.error_description}`);
+      }
+
+      // 构建新的 TokenInfo
+      const tokenInfo: TokenInfo = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || refreshToken,  // 如果没有返回新的，使用旧的
+        expires_in: data.expires_in || 7200,
+        token_created_at: Date.now(),
+        token_type: data.token_type || 'Bearer',
+      };
+
+      log.info('✅ Token 刷新成功');
+      return tokenInfo;
+    } catch (error) {
+      log.error('❌ Token 刷新失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 检查 token 是否过期
+   * 提前5分钟判定为过期，留出刷新时间
+   */
+  isTokenExpired(tokenInfo: TokenInfo): boolean {
+    const now = Date.now();
+    const expiresAt = tokenInfo.token_created_at + (tokenInfo.expires_in * 1000);
+    const bufferTime = 5 * 60 * 1000;  // 5分钟缓冲
+    
+    return now >= (expiresAt - bufferTime);
   }
 
   /**

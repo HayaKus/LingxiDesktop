@@ -54,7 +54,7 @@ export class AIService {
     messages: ChatMessage[],
     knowledge?: string,
     onError?: (error: Error) => void
-  ): AsyncGenerator<string, void, unknown> {
+  ): AsyncGenerator<string, { usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }, unknown> {
     if (!this.client) {
       throw new Error('AI Service not initialized. Please set API key first.');
     }
@@ -98,11 +98,28 @@ export class AIService {
 
       let chunkCount = 0;
       let totalContent = 0;
+      let usageInfo: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
       const startTime = Date.now();
       
       try {
         for await (const chunk of stream) {
           chunkCount++;
+          
+          // 📊 记录完整的 chunk 数据结构（前3个chunk）
+          if (chunkCount <= 3) {
+            logger.info(`📦 Chunk ${chunkCount} 完整数据:`, JSON.stringify(chunk, null, 2));
+          }
+          
+          // 📊 检查是否有 usage 信息
+          if (chunk.usage) {
+            logger.info('💰 发现 usage 信息:', JSON.stringify(chunk.usage, null, 2));
+            usageInfo = {
+              prompt_tokens: chunk.usage.prompt_tokens || 0,
+              completion_tokens: chunk.usage.completion_tokens || 0,
+              total_tokens: chunk.usage.total_tokens || 0,
+            };
+          }
+          
           const content = chunk.choices[0]?.delta?.content;
           if (content) {
             totalContent += content.length;
@@ -118,6 +135,9 @@ export class AIService {
         
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         logger.info(`✅ 流式响应接收完成：共 ${chunkCount} 个chunk，${totalContent} 字符，耗时 ${elapsed}s`);
+        
+        // 返回 usage 信息
+        return { usage: usageInfo };
       } catch (streamError: any) {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         logger.error('❌ 流式响应中断：', {

@@ -1,13 +1,24 @@
 // 消息类型
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
-  content: string;
+  role: 'user' | 'assistant' | 'tool';  // ← 添加 'tool'
+  content: string | null;  // ← 允许 null
   imageUrl?: string;  // 保留用于向后兼容
   imageUrls?: string[];  // 新增：支持多张图片
   screenshotImageUrls?: string[];  // 窗口截图（不显示给用户，但发送给AI）
   clipboardImageUrls?: string[];  // 粘贴板截图（显示给用户）
   timestamp: number;
+  
+  // 工具调用相关
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+  tool_call_id?: string;  // 工具调用结果的 ID
 }
 
 // 对话上下文

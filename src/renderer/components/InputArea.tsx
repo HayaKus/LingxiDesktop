@@ -1,45 +1,32 @@
 import React, { useState } from 'react';
 import { useChatStore } from '../store/chatStore';
-import { aiService } from '../utils/aiService';
-import { generateId, convertToChatMessage, formatError } from '../utils/helpers';
-import { intelligentContextManagement } from '../utils/contextManager';
+import { generateId, formatError } from '../utils/helpers';
 import { logger } from '../utils/logger';
 
-// 提取AI建议回复的内容
-// 匹配系统提示词中要求的标准格式：建议回复："xxx"
-function extractSuggestedReply(aiResponse: string): string | null {
-  const pattern = /建议回复[：:]\s*["""']([^"""']+)["""']/i;
-  const match = aiResponse.match(pattern);
-  
-  if (match && match[1]) {
-    return match[1].trim();
-  }
-
-  return null;
+interface InputAreaProps {
+  currentSessionId: string | null;
 }
 
-export function InputArea() {
+export function InputArea({ currentSessionId }: InputAreaProps) {
   const [input, setInput] = useState('');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const noticeTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   
-  const {
-    messages,
-    isLoading,
-    includeScreenshot,
-    includeClipboard,
-    autoClipboard,
-    knowledge,
-    contextTrimNotice,
-    addMessage,
-    updateLastMessage,
-    setLoading,
-    setError,
-    setIncludeScreenshot,
-    setIncludeClipboard,
-    setAutoClipboard,
-    setContextTrimNotice,
-  } = useChatStore();
+  const getSessionState = useChatStore((state) => state.getSessionState);
+  const addMessage = useChatStore((state) => state.addMessage);
+  const setLoading = useChatStore((state) => state.setLoading);
+  const setError = useChatStore((state) => state.setError);
+  const includeScreenshot = useChatStore((state) => state.includeScreenshot);
+  const includeClipboard = useChatStore((state) => state.includeClipboard);
+  const contextTrimNotice = useChatStore((state) => state.contextTrimNotice);
+  const setIncludeScreenshot = useChatStore((state) => state.setIncludeScreenshot);
+  const setIncludeClipboard = useChatStore((state) => state.setIncludeClipboard);
+  const setAutoClipboard = useChatStore((state) => state.setAutoClipboard);
+  
+  // 获取当前会话状态
+  const sessionState = currentSessionId ? getSessionState(currentSessionId) : null;
+  const messages = sessionState?.messages || [];
+  const isLoading = sessionState?.isLoading || false;
 
   // 自动聚焦输入框
   React.useEffect(() => {
@@ -63,67 +50,74 @@ export function InputArea() {
   }, []);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !currentSessionId) return;
 
     const userMessage = input.trim();
     setInput('');
-    setLoading(true);
-    setError(null);
+    setLoading(currentSessionId, true);
+    setError(currentSessionId, null);
 
     try {
-      // 分别收集窗口截图和粘贴板截图
+      // 收集图片
       const screenshotImageUrls: string[] = [];
       const clipboardImageUrls: string[] = [];
       const allImageUrls: string[] = [];
+      let totalImageCount = 0;
 
-      // 收集窗口截图（不显示给用户，但发送给AI）
+      // 收集窗口截图
       if (includeScreenshot) {
         try {
           const screenshot = await window.electronAPI.captureScreen();
           screenshotImageUrls.push(screenshot);
           allImageUrls.push(screenshot);
+          totalImageCount++;
         } catch (error) {
           console.error('Screenshot failed:', error);
-          setError('截图失败，请检查屏幕录制权限');
-          setLoading(false);
+          setError(currentSessionId, '截图失败，请检查屏幕录制权限');
+          setLoading(currentSessionId, false);
           return;
         }
       }
 
-      // 收集剪贴板图片（显示给用户）- 现在返回历史中的所有图片
+      // 收集剪贴板图片
       if (includeClipboard) {
         try {
           const clipboardImages = await window.electronAPI.readClipboardImage();
-          console.log('📋 Clipboard images received:', clipboardImages);
-          
-          // 兼容处理：可能返回数组或空数组
           if (clipboardImages && Array.isArray(clipboardImages) && clipboardImages.length > 0) {
-            console.log(`✅ Found ${clipboardImages.length} clipboard images`);
             clipboardImageUrls.push(...clipboardImages);
             allImageUrls.push(...clipboardImages);
-          } else {
-            console.log('ℹ️ No clipboard images in history');
+            totalImageCount += clipboardImages.length;
           }
-          // 如果剪贴板没有图片，静默跳过，不报错
         } catch (error) {
-          console.error('❌ Read clipboard failed:', error);
-          // 读取失败也不报错，静默跳过
+          console.error('Read clipboard failed:', error);
         }
       }
 
-      // 添加用户消息（不包含任何图片显示）
+      // 构建用户消息（不包含图片）
       const newUserMessage = {
         id: generateId(),
         role: 'user' as const,
         content: userMessage,
-        imageUrls: allImageUrls.length > 0 ? allImageUrls : undefined,  // 发送给AI的所有图片
         timestamp: Date.now(),
       };
-      addMessage(newUserMessage);
 
-      // 如果有粘贴板截图，添加一条AI消息来显示（让它看起来像AI看到了粘贴板）
+      // 添加到当前会话的 UI
+      addMessage(currentSessionId, newUserMessage);
+
+      // 如果有窗口截图，添加一条带图片的assistant消息
+      if (screenshotImageUrls.length > 0) {
+        addMessage(currentSessionId, {
+          id: generateId(),
+          role: 'assistant',
+          content: '📸 我看到了你的屏幕截图：',
+          imageUrls: screenshotImageUrls,
+          timestamp: Date.now(),
+        });
+      }
+
+      // 如果有粘贴板截图，添加一条带图片的assistant消息  
       if (clipboardImageUrls.length > 0) {
-        addMessage({
+        addMessage(currentSessionId, {
           id: generateId(),
           role: 'assistant',
           content: '📋 我看到了你粘贴板中的截图：',
@@ -132,115 +126,60 @@ export function InputArea() {
         });
       }
 
-      // ✅ 智能上下文管理：动态裁剪历史消息
-      logger.info('🔄 开始上下文管理...');
-      const { trimmedMessages, stats } = intelligentContextManagement(
-        messages,
-        newUserMessage,
-        knowledge
-      );
+      // 构建消息内容（用于发送给主进程）
+      let messageContent: any = userMessage;
       
-      // 上下文裁剪提示
-      if (stats.removedCount > 0 || stats.imagesRemoved > 0) {
-        logger.info('📊 上下文优化统计：', {
-          originalCount: stats.originalCount,
-          originalTokens: stats.originalTokens,
-          trimmedCount: stats.trimmedCount,
-          trimmedTokens: stats.trimmedTokens,
-          removedCount: stats.removedCount,
-          imagesRemoved: stats.imagesRemoved,
-          targetTokens: stats.targetTokens,
-          usageRate: `${((stats.trimmedTokens / stats.targetTokens) * 100).toFixed(1)}%`,
-        });
-        
-        // 清除之前的定时器
-        if (noticeTimerRef.current) {
-          clearTimeout(noticeTimerRef.current);
-        }
-        
-        // 构建提示信息
-        let notice = '已自动优化对话上下文：';
-        if (stats.imagesRemoved > 0 && stats.removedCount === 0) {
-          // 只移除了图片
-          notice += `移除 ${stats.imagesRemoved} 张旧图片，保留最新图片和所有文字`;
-        } else if (stats.imagesRemoved > 0 && stats.removedCount > 0) {
-          // 既移除了图片又移除了消息
-          notice += `移除 ${stats.imagesRemoved} 张旧图片和 ${stats.removedCount} 条旧消息，保留最近 ${stats.trimmedCount} 条`;
-        } else {
-          // 只移除了消息
-          notice += `保留最近 ${stats.trimmedCount} 条消息，移除较早的 ${stats.removedCount} 条消息`;
-        }
-        
-        // 设置系统提示（不作为对话消息）
-        setContextTrimNotice(notice);
-        
-        // 5秒后自动清除提示
-        noticeTimerRef.current = setTimeout(() => {
-          setContextTrimNotice(null);
-          noticeTimerRef.current = null;
-        }, 5000);
+      // 如果有图片，构建多模态内容
+      if (allImageUrls.length > 0) {
+        messageContent = [
+          { type: 'text', text: userMessage },
+          ...allImageUrls.map(url => ({
+            type: 'image_url',
+            image_url: { url }
+          }))
+        ];
       }
-      
-      // 准备 AI 请求 - 使用裁剪后的历史消息
-      const chatMessages = trimmedMessages
-        .map(convertToChatMessage);
-      chatMessages.push(convertToChatMessage(newUserMessage));
 
-      // 添加 AI 消息占位符
-      const aiMessageId = generateId();
-      addMessage({
-        id: aiMessageId,
-        role: 'assistant',
-        content: '',
-        timestamp: Date.now(),
+      // 准备发送给主进程的消息列表（过滤掉 tool 消息）
+      const sessionMessages = messages
+        .filter(msg => msg.role !== 'tool')
+        .map(msg => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content || '',
+          imageUrls: msg.imageUrls,
+          clipboardImageUrls: msg.clipboardImageUrls,
+          timestamp: msg.timestamp,
+        }));
+
+      // 添加当前用户消息
+      sessionMessages.push({
+        id: newUserMessage.id,
+        role: newUserMessage.role,
+        content: messageContent,
+        imageUrls: undefined,
+        clipboardImageUrls: undefined,
+        timestamp: newUserMessage.timestamp,
       });
 
-      // 流式接收 AI 响应
-      let fullResponse = '';
-      try {
-        for await (const chunk of aiService.chat(chatMessages, knowledge, (error) => {
-          console.error('💥 AI Service 回调错误：', error);
-          setError(formatError(error));
-        })) {
-          fullResponse += chunk;
-          updateLastMessage(fullResponse);
-        }
-      } catch (streamError: any) {
-        console.error('💥 流式响应错误：', streamError);
-        console.error('   错误详情：', {
-          name: streamError.name,
-          message: streamError.message,
-          stack: streamError.stack,
-          ...streamError
-        });
-        throw streamError;
-      }
+      // 发送到主进程处理
+      await window.electronAPI.sessionStartAI(
+        currentSessionId,
+        sessionMessages,
+        userMessage,
+        totalImageCount
+      );
 
-      // 如果开启了自动复制到粘贴板，智能提取AI建议的回复内容
-      if (autoClipboard && fullResponse) {
-        const suggestedReply = extractSuggestedReply(fullResponse);
-        if (suggestedReply) {
-          try {
-            await navigator.clipboard.writeText(suggestedReply);
-            console.log('✅ 已提取建议回复并复制到粘贴板:', suggestedReply);
-          } catch (error) {
-            console.error('复制到粘贴板失败:', error);
-            // 复制失败不影响主流程，静默处理
-          }
-        } else {
-          console.log('ℹ️ AI回复中未找到建议回复内容');
-        }
-      }
+      logger.info(`✅ 消息已发送到主进程，会话ID: ${currentSessionId}`);
 
-      // ✅ AI回复完成后，自动取消勾选截图选项，避免重复发送相同截图
+      // 自动取消勾选截图选项
       setIncludeScreenshot(false);
       setIncludeClipboard(false);
 
-      setLoading(false);
     } catch (error: any) {
       console.error('Send message error:', error);
-      setError(formatError(error));
-      setLoading(false);
+      setError(currentSessionId, formatError(error));
+      setLoading(currentSessionId, false);
     }
   };
 

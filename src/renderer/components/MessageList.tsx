@@ -2,15 +2,32 @@ import { useEffect, useRef } from 'react';
 import { MessageItem } from './MessageItem';
 import { useChatStore } from '../store/chatStore';
 
-export function MessageList() {
-  const messages = useChatStore((state) => state.messages);
-  const isLoading = useChatStore((state) => state.isLoading);
+interface MessageListProps {
+  sessionId: string | null;
+}
+
+export function MessageList({ sessionId }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // 优化：只订阅当前会话的状态，避免其他会话变化导致重渲染
+  const messages = useChatStore((state) => 
+    sessionId && state.sessions[sessionId] ? state.sessions[sessionId].messages : []
+  );
+  const isLoading = useChatStore((state) => 
+    sessionId && state.sessions[sessionId] ? state.sessions[sessionId].isLoading : false
+  );
 
   // 自动滚动到底部
+  // 1. 消息数量变化时滚动
+  // 2. 流式返回时也要滚动（监听最后一条消息的内容变化）
+  const messageCount = messages.length;
+  const lastMessageContent = messages.length > 0 ? messages[messages.length - 1].content : '';
+  
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messageCount > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messageCount, lastMessageContent]);
 
   if (messages.length === 0) {
     return (
@@ -25,7 +42,7 @@ export function MessageList() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex-1 overflow-y-auto p-4 min-h-0">
       {messages.map((message) => (
         <MessageItem key={message.id} message={message} />
       ))}
