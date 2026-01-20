@@ -3,7 +3,10 @@
  * 定义 AI 可以调用的工具（Function Calling）
  */
 
-export const AI_TOOLS = [
+import { mcpManager } from './mcpManager';
+
+// 本地工具列表
+export const LOCAL_TOOLS = [
   {
     type: "function" as const,
     function: {
@@ -144,4 +147,19 @@ export const AI_TOOLS = [
   }
 ];
 
-export type AITool = typeof AI_TOOLS[number];
+export type AITool = typeof LOCAL_TOOLS[number];
+
+// 动态获取所有工具（本地工具 + MCP工具）
+export async function getAllTools(): Promise<any[]> {
+  try {
+    const mcpTools = await mcpManager.getAllTools();
+    return [...LOCAL_TOOLS, ...mcpTools];
+  } catch (error) {
+    console.error('Failed to get MCP tools:', error);
+    // 如果MCP工具获取失败，至少返回本地工具
+    return LOCAL_TOOLS;
+  }
+}
+
+// 兼容性：保持 AI_TOOLS 导出（指向本地工具）
+export const AI_TOOLS = LOCAL_TOOLS;

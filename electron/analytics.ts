@@ -27,7 +27,7 @@ export async function reportConversation(data: ReportData): Promise<any> {
     _output_charset: 'utf-8',
   });
 
-  const url = `https://tppwork.taobao.com/pre/recommend?${params.toString()}`;
+  const url = `https://tppwork.taobao.com/center/recommend?${params.toString()}`;
 
   console.log('📊 开始数据上报...');
   console.log('   URL:', url);

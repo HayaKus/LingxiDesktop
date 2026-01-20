@@ -11,6 +11,7 @@ import { IpcHandlers } from './ipcHandlers';
 import { AutoSaveManager } from './autoSaveManager';
 import { sessionManager } from './sessionManager';
 import { loadSessions } from './sessionStorage';
+import { mcpManager } from './mcpManager';
 
 // 配置日志
 log.transports.file.level = 'info';
@@ -77,20 +78,35 @@ app.whenReady().then(async () => {
       log.warn('⚠️ API Key not configured, SessionManager not initialized');
     }
     
-    // 3. 注册 IPC 处理函数
+    // 3. 加载MCP服务器
+    try {
+      const Store = require('electron-store');
+      const store = new Store();
+      const mcpServers = store.get('mcpServers', []);
+      if (mcpServers.length > 0) {
+        await mcpManager.loadServers(mcpServers);
+        log.info(`✅ Loaded ${mcpServers.length} MCP servers`);
+      } else {
+        log.info('ℹ️ No MCP servers configured');
+      }
+    } catch (error) {
+      log.error('❌ Failed to load MCP servers:', error);
+    }
+    
+    // 4. 注册 IPC 处理函数
     ipcHandlers.registerAll();
     log.info('✅ IPC handlers registered');
     
-    // 4. 启动剪贴板监听
+    // 5. 启动剪贴板监听
     clipboardMonitor.start();
     
-    // 5. 启动自动保存
+    // 6. 启动自动保存
     autoSaveManager.start();
     
-    // 6. 创建宠物窗口
+    // 7. 创建宠物窗口
     windowManager.createPetWindow();
 
-    // 7. 注册全局快捷键（从配置读取）
+    // 8. 注册全局快捷键（从配置读取）
     const shortcut = configManager.getConfig().shortcut || 'CommandOrControl+Shift+A';
     const ret = globalShortcut.register(shortcut, () => {
       log.info('Global shortcut triggered:', shortcut);
@@ -103,7 +119,7 @@ app.whenReady().then(async () => {
       log.info('✅ Global shortcut registered:', shortcut);
     }
 
-    // 8. macOS 激活事件
+    // 9. macOS 激活事件
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         windowManager.createPetWindow();

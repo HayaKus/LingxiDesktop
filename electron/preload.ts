@@ -73,6 +73,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sessionStartAI: async (sessionId: string, messages: any[], userMessage: string, imageCount: number): Promise<boolean> => {
     return await ipcRenderer.invoke('session:start-ai', sessionId, messages, userMessage, imageCount);
   },
+  sessionCancel: async (sessionId: string): Promise<boolean> => {
+    return await ipcRenderer.invoke('session:cancel', sessionId);
+  },
 
   // 获取会话详情
   sessionGet: async (sessionId: string): Promise<any> => {
@@ -144,6 +147,58 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offCommandStderr: (callback: any) => {
     ipcRenderer.removeListener('command:stderr', callback);
   },
+
+  // ============ MCP服务器管理 API ============
+  
+  // 获取所有MCP服务器
+  mcpGetServers: async (): Promise<any[]> => {
+    return await ipcRenderer.invoke('mcp:get-servers');
+  },
+  
+  // 添加MCP服务器
+  mcpAddServer: async (config: any): Promise<boolean> => {
+    return await ipcRenderer.invoke('mcp:add-server', config);
+  },
+  
+  // 删除MCP服务器
+  mcpRemoveServer: async (serverId: string): Promise<boolean> => {
+    return await ipcRenderer.invoke('mcp:remove-server', serverId);
+  },
+  
+  // 测试MCP连接
+  mcpTestConnection: async (config: any): Promise<{ success: boolean; error?: string }> => {
+    return await ipcRenderer.invoke('mcp:test-connection', config);
+  },
+  
+  // 获取MCP服务器状态
+  mcpGetStatus: async (serverId: string): Promise<'connected' | 'disconnected'> => {
+    return await ipcRenderer.invoke('mcp:get-status', serverId);
+  },
+  
+  // 监听MCP日志
+  onMcpLog: (callback: (data: { message: string; level: 'log' | 'error' | 'warn'; timestamp: string }) => void) => {
+    ipcRenderer.on('mcp:log', (event, data) => callback(data));
+  },
+  
+  // 移除MCP日志监听
+  offMcpLog: (callback: any) => {
+    ipcRenderer.removeListener('mcp:log', callback);
+  },
+  
+  // 获取单个服务器的工具列表
+  mcpGetTools: async (serverId: string): Promise<any[]> => {
+    return await ipcRenderer.invoke('mcp:get-tools', serverId);
+  },
+  
+  // 获取所有服务器的工具（OpenAI格式）
+  mcpGetAllTools: async (): Promise<any[]> => {
+    return await ipcRenderer.invoke('mcp:get-all-tools');
+  },
+  
+  // 调用MCP工具
+  mcpCallTool: async (toolName: string, args: any): Promise<any> => {
+    return await ipcRenderer.invoke('mcp:call-tool', toolName, args);
+  },
 });
 
 // 用户信息接口
@@ -178,6 +233,13 @@ export interface ElectronAPI {
   sessionDelete: (sessionId: string) => Promise<boolean>;
   onSessionUpdate: (callback: (data: any) => void) => void;
   offSessionUpdate: (callback: (data: any) => void) => void;
+  
+  // MCP服务器管理
+  mcpGetServers: () => Promise<any[]>;
+  mcpAddServer: (config: any) => Promise<boolean>;
+  mcpRemoveServer: (serverId: string) => Promise<boolean>;
+  mcpTestConnection: (config: any) => Promise<{ success: boolean; error?: string }>;
+  mcpGetStatus: (serverId: string) => Promise<'connected' | 'disconnected'>;
 }
 
 declare global {

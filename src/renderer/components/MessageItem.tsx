@@ -133,57 +133,43 @@ export const MessageItem = memo(function MessageItem({ message }: MessageItemPro
                 return null;
               })()}
               
-              {/* 显示工具调用 */}
-              {(message as any).tool_calls && (message as any).tool_calls.length > 0 && (
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                  <div className="flex items-center gap-2 text-sm text-blue-700 font-medium mb-3">
-                    <span>🔧</span>
-                    <span>执行了 {(message as any).tool_calls.length} 个命令</span>
-                  </div>
-                  <div className="space-y-3">
-                    {(message as any).tool_calls.map((call: any, i: number) => {
-                      let args;
-                      let commandDisplay = '';
-                      try {
-                        args = JSON.parse(call.function.arguments);
-                        // 根据不同的工具类型显示不同的命令
-                        if (call.function.name === 'execute_command') {
-                          commandDisplay = `$ ${args.command}`;
-                        } else if (call.function.name === 'read_file') {
-                          commandDisplay = `$ cat ${args.path}`;
-                        } else if (call.function.name === 'list_directory') {
-                          commandDisplay = `$ ls ${args.path || '.'}`;
-                        } else if (call.function.name === 'search_files') {
-                          commandDisplay = `$ grep -r "${args.pattern}" ${args.path || '.'}`;
-                        } else if (call.function.name === 'find_file') {
-                          commandDisplay = `$ find ${args.base_path || '~'} -name "*${args.query}*"`;
-                        } else if (call.function.name === 'smart_read') {
-                          commandDisplay = `$ smart_read "${args.query}"`;
-                        }
-                      } catch {
-                        args = call.function.arguments;
-                      }
-                      return (
-                        <div key={i} className="bg-white rounded border border-blue-100 overflow-hidden">
-                          {/* 命令显示 */}
-                          <div className="px-3 py-2 bg-gray-800 text-green-400 font-mono text-sm">
-                            {commandDisplay || call.function.name}
-                          </div>
-                          {/* 参数详情（可折叠）*/}
-                          <details className="px-3 py-2">
-                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-800 select-none">
-                              查看参数详情
-                            </summary>
-                            <pre className="mt-2 text-gray-600 overflow-x-auto text-xs bg-gray-50 p-2 rounded">
-                              {typeof args === 'object' 
-                                ? JSON.stringify(args, null, 2)
-                                : args}
-                            </pre>
-                          </details>
+              {/* 显示工具调用及其结果 */}
+              {(message as any).toolExecutions && (message as any).toolExecutions.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  {(message as any).toolExecutions.map((exec: any, i: number) => (
+                    <div key={i} className="border border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
+                      {/* 头部：命令标题 */}
+                      <div className="px-3 py-2 bg-gray-100 border-b border-gray-300 flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          {exec.status === 'executing' && '⏳ 正在执行命令...'}
+                          {exec.status === 'completed' && '✅ 命令执行完成'}
+                          {exec.status === 'failed' && '❌ 命令执行失败'}
+                        </span>
+                      </div>
+                      
+                      {/* 命令行显示 */}
+                      <div className="px-3 py-2 bg-gray-900 text-gray-100 font-mono text-sm overflow-x-auto">
+                        <div className="flex items-start gap-2">
+                          <span className="text-green-400 select-none">&gt;_</span>
+                          <span className="flex-1 whitespace-pre-wrap break-all">{exec.command}</span>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                      
+                      {/* 命令输出结果 */}
+                      {exec.result && (
+                        <details open={exec.status === 'completed' || exec.status === 'failed'} className="border-t border-gray-300">
+                          <summary className="px-3 py-2 bg-gray-50 cursor-pointer text-sm text-gray-600 hover:bg-gray-100 select-none">
+                            {exec.status === 'completed' ? '📄 查看输出' : '⚠️ 查看错误'}
+                          </summary>
+                          <div className="px-3 py-2 bg-white">
+                            <pre className="text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap max-h-96 overflow-y-auto">
+                              {exec.result}
+                            </pre>
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

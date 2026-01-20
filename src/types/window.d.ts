@@ -52,6 +52,7 @@ interface Window {
     // 会话管理 API
     sessionCreate: () => Promise<Session>;
     sessionStartAI: (sessionId: string, messages: SessionMessage[], userMessage: string, imageCount: number) => Promise<boolean>;
+    sessionCancel: (sessionId: string) => Promise<boolean>;
     sessionGet: (sessionId: string) => Promise<Session | undefined>;
     sessionGetAll: () => Promise<Session[]>;
     sessionDelete: (sessionId: string) => Promise<boolean>;
@@ -68,5 +69,17 @@ interface Window {
     onCommandStderr: (callback: (executionId: string, data: string) => void) => void;
     offCommandStdout: (callback: any) => void;
     offCommandStderr: (callback: any) => void;
-  };
+    
+    // MCP服务器管理
+    mcpGetServers: () => Promise<any[]>;
+    mcpAddServer: (config: any) => Promise<boolean>;
+    mcpRemoveServer: (serverId: string) => Promise<boolean>;
+    mcpTestConnection: (config: any) => Promise<{ success: boolean; error?: string }>;
+    mcpGetStatus: (serverId: string) => Promise<'connected' | 'disconnected'>;
+    onMcpLog: (callback: (data: { message: string; level: 'log' | 'error' | 'warn'; timestamp: string }) => void) => void;
+    offMcpLog: (callback: any) => void;
+    mcpGetTools: (serverId: string) => Promise<any[]>;
+    mcpGetAllTools: () => Promise<any[]>;
+    mcpCallTool: (toolName: string, args: any) => Promise<any>;
+  }
 }

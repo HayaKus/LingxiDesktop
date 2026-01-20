@@ -3,6 +3,7 @@ import { MessageList } from './components/MessageList';
 import { InputArea } from './components/InputArea';
 import { SessionHistory } from './components/SessionHistory';
 import { CommandTest } from './components/CommandTest';
+import { McpConfig } from './components/McpConfig';
 import { useChatStore } from './store/chatStore';
 import { aiService } from './utils/aiService';
 
@@ -29,6 +30,7 @@ function App() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [showCommandTest, setShowCommandTest] = useState(false);
+  const [showMcpConfig, setShowMcpConfig] = useState(false);
   // 优化：使用 useCallback 包装函数，避免每次都创建新函数
   const setCurrentSession = useChatStore((state) => state.setCurrentSession);
   const loadMessages = useChatStore((state) => state.loadMessages);
@@ -54,6 +56,25 @@ function App() {
     if (!currentSessionId) {
       createNewSession();
     }
+    
+    // 监听MCP日志
+    const handleMcpLog = (data: { message: string; level: 'log' | 'error' | 'warn'; timestamp: string }) => {
+      if (data.level === 'error') {
+        console.error(`[MCP ${data.timestamp}]`, data.message);
+      } else if (data.level === 'warn') {
+        console.warn(`[MCP ${data.timestamp}]`, data.message);
+      } else {
+        console.log(`[MCP ${data.timestamp}]`, data.message);
+      }
+    };
+    
+    // 注册监听器
+    window.electronAPI?.onMcpLog?.(handleMcpLog);
+    
+    return () => {
+      // 清理监听器（如果有提供off方法）
+      window.electronAPI?.offMcpLog?.(handleMcpLog);
+    };
   }, []); // 只在组件挂载时执行一次
 
   // 单独监听会话更新
@@ -62,6 +83,7 @@ function App() {
     
     const handleSessionUpdate = (data: any) => {
       console.log('Session update:', data, 'Current session:', currentSessionId);
+      console.log('Event type:', data.type, 'Event sessionId:', data.sessionId, 'Match:', data.sessionId === currentSessionId);
       
       // 严格检查：只处理当前会话的更新
       if (data.sessionId !== currentSessionId) {
@@ -79,12 +101,36 @@ function App() {
           content: `⚠️ ${data.message}`,
           timestamp: Date.now(),
         });
+      } else if (data.type === 'tool-executing') {
+        // 工具开始执行
+        console.log('🔧 Tool executing:', data.toolName, data.command);
+        useChatStore.getState().addToolExecution(currentSessionId, {
+          id: data.toolCallId,
+          command: data.command,
+          status: 'executing',
+          result: null,
+        });
+      } else if (data.type === 'tool-completed') {
+        // 工具执行完成
+        console.log('✅ Tool completed:', data.toolName, data.status);
+        useChatStore.getState().updateToolExecution(currentSessionId, data.toolCallId, {
+          status: data.status,
+          result: data.result,
+        });
       } else if (data.type === 'chunk') {
         // 更新 AI 回复
         useChatStore.getState().updateAssistantMessage(currentSessionId, data.content, data.tool_calls);
       } else if (data.type === 'completed') {
         // 完成
+        console.log('🎉 Received completed event, updating UI states...');
         useChatStore.getState().setLoading(currentSessionId, false);
+        
+        // AI回复完成后，自动取消勾选截图和粘贴板选项
+        // 这样可以保持按钮状态（发送/取消）和复选框状态的一致性
+        console.log('📋 Unchecking screenshot and clipboard options...');
+        useChatStore.getState().setIncludeScreenshot(false);
+        useChatStore.getState().setIncludeClipboard(false);
+        console.log('✅ UI states updated');
         
         // 显示数据上报日志
         if (data.usage) {
@@ -234,6 +280,7 @@ function App() {
   // 统一的设置界面
   if (showConfig) {
     return (
+      <>
       <div className="w-screen h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">
@@ -315,6 +362,37 @@ function App() {
             </p>
           </div>
 
+          {/* MCP服务器配置 */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-gray-700">
+                📡 MCP 服务器
+              </label>
+              <button
+                onClick={() => setShowMcpConfig(true)}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                管理服务器 →
+              </button>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded p-3">
+              <p className="text-xs text-gray-600 mb-2">
+                MCP（Model Context Protocol）允许AI使用外部工具和服务
+              </p>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>🔧</span>
+                <span>支持 HTTP 和 SSE 协议</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                <span>🌐</span>
+                <span>可连接本地或远程MCP服务器</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              提示：通过浏览器控制台使用 <code className="bg-gray-100 px-1 rounded">window.electronAPI.mcp*</code> API配置
+            </p>
+          </div>
+
           {/* 命令测试 */}
           <div className="mb-6">
             <button
@@ -356,6 +434,10 @@ function App() {
           </div>
         </div>
       </div>
+      
+      {/* MCP配置弹窗 */}
+      {showMcpConfig && <McpConfig onClose={() => setShowMcpConfig(false)} />}
+      </>
     );
   }
 
@@ -461,6 +543,9 @@ function App() {
           <InputArea currentSessionId={currentSessionId} />
         </>
       )}
+      
+      {/* MCP配置弹窗 */}
+      {showMcpConfig && <McpConfig onClose={() => setShowMcpConfig(false)} />}
     </div>
   );
 }

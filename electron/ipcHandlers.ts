@@ -12,8 +12,10 @@ import { ConfigManager } from './configManager';
 import { sessionManager } from './sessionManager';
 import { commandExecutor } from './commandExecutor';
 import { CommandSecurity } from './commandSecurity';
+import { mcpManager } from './mcpManager';
 import { reregisterShortcut } from './main';
 import type { CommandOptions } from './commandExecutor';
+import type { MCPServerConfig } from './mcpClient';
 
 // 应用日志文件路径
 const appLogPath = path.join(app.getPath('userData'), 'app.log');
@@ -35,6 +37,7 @@ export class IpcHandlers {
     this.registerAuthHandlers();
     this.registerSessionHandlers();
     this.registerCommandHandlers();
+    this.registerMCPHandlers();
     this.registerLogHandlers();
   }
 
@@ -280,6 +283,17 @@ export class IpcHandlers {
       }
     });
 
+    ipcMain.handle('session:cancel', async (event, sessionId: string) => {
+      try {
+        const cancelled = sessionManager.cancelSession(sessionId);
+        log.info(`Session ${sessionId} ${cancelled ? 'cancelled' : 'not found'}`);
+        return cancelled;
+      } catch (error) {
+        log.error('Cancel session failed:', error);
+        throw error;
+      }
+    });
+
     ipcMain.handle('session:get', async (event, sessionId: string) => {
       try {
         return sessionManager.getSession(sessionId);
@@ -425,6 +439,135 @@ export class IpcHandlers {
         throw error;
       }
     });
+  }
+
+  /**
+   * MCP服务器相关处理
+   */
+  private registerMCPHandlers(): void {
+    // 获取所有MCP服务器
+    ipcMain.handle('mcp:get-servers', async () => {
+      try {
+        const servers = mcpManager.getServers();
+        log.info(`📡 Retrieved ${servers.length} MCP servers`);
+        return servers;
+      } catch (error) {
+        log.error('❌ Get MCP servers failed:', error);
+        throw error;
+      }
+    });
+
+    // 添加MCP服务器
+    ipcMain.handle('mcp:add-server', async (event, config: MCPServerConfig) => {
+      try {
+        log.info(`📡 Adding MCP server: ${config.name} (${config.type})`);
+        await mcpManager.addServer(config);
+        
+        // 保存到配置
+        this.saveMCPServers();
+        
+        log.info(`✅ MCP server added: ${config.name}`);
+        return true;
+      } catch (error) {
+        log.error('❌ Add MCP server failed:', error);
+        throw error;
+      }
+    });
+
+    // 删除MCP服务器
+    ipcMain.handle('mcp:remove-server', async (event, serverId: string) => {
+      try {
+        log.info(`🗑️ Removing MCP server: ${serverId}`);
+        mcpManager.removeServer(serverId);
+        
+        // 保存到配置
+        this.saveMCPServers();
+        
+        log.info(`✅ MCP server removed: ${serverId}`);
+        return true;
+      } catch (error) {
+        log.error('❌ Remove MCP server failed:', error);
+        throw error;
+      }
+    });
+
+    // 测试MCP服务器连接
+    ipcMain.handle('mcp:test-connection', async (event, config: MCPServerConfig) => {
+      try {
+        log.info(`🔌 Testing MCP connection: ${config.name}`);
+        const result = await mcpManager.testConnection(config);
+        log.info(`${result.success ? '✅' : '❌'} Connection test result: ${config.name}`);
+        return result;
+      } catch (error) {
+        log.error('❌ Connection test failed:', error);
+        throw error;
+      }
+    });
+
+    // 获取MCP服务器状态
+    ipcMain.handle('mcp:get-status', async (event, serverId: string) => {
+      try {
+        const status = mcpManager.getServerStatus(serverId);
+        return status;
+      } catch (error) {
+        log.error('❌ Get server status failed:', error);
+        throw error;
+      }
+    });
+
+    // 获取单个服务器的工具列表
+    ipcMain.handle('mcp:get-tools', async (event, serverId: string) => {
+      try {
+        log.info(`📦 Getting tools for server: ${serverId}`);
+        const tools = await mcpManager.getToolsForServer(serverId);
+        log.info(`✅ Got ${tools.length} tools from ${serverId}`);
+        return tools;
+      } catch (error) {
+        log.error('❌ Get tools failed:', error);
+        throw error;
+      }
+    });
+
+    // 获取所有服务器的工具（OpenAI格式）
+    ipcMain.handle('mcp:get-all-tools', async () => {
+      try {
+        log.info(`📦 Getting all MCP tools...`);
+        const tools = await mcpManager.getAllTools();
+        log.info(`✅ Got ${tools.length} total tools`);
+        return tools;
+      } catch (error) {
+        log.error('❌ Get all tools failed:', error);
+        throw error;
+      }
+    });
+
+    // 调用MCP工具
+    ipcMain.handle('mcp:call-tool', async (event, toolName: string, args: any) => {
+      try {
+        log.info(`🔧 Calling MCP tool: ${toolName}`);
+        const result = await mcpManager.callTool(toolName, args);
+        log.info(`✅ MCP tool call completed: ${toolName}`);
+        return result;
+      } catch (error) {
+        log.error('❌ Call tool failed:', error);
+        throw error;
+      }
+    });
+  }
+
+  /**
+   * 保存MCP服务器配置到electron-store
+   */
+  private saveMCPServers(): void {
+    try {
+      const servers = mcpManager.getServers();
+      const Store = require('electron-store');
+      const store = new Store();
+      store.set('mcpServers', servers);
+      log.info(`💾 Saved ${servers.length} MCP servers to config`);
+    } catch (error) {
+      log.error('❌ Failed to save MCP servers:', error);
+    }
   }
 
   /**

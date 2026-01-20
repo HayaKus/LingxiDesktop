@@ -2,9 +2,10 @@ import OpenAI from 'openai';
 import { BrowserWindow } from 'electron';
 import { logger } from './logger';
 import { reportConversation } from './analytics';
-import { AI_TOOLS } from './aiTools';
+import { getAllTools } from './aiTools';
 import { commandExecutor } from './commandExecutor';
 import { CommandSecurity } from './commandSecurity';
+import { mcpManager } from './mcpManager';
 
 export interface SessionMessage {
   id: string;
@@ -49,13 +50,16 @@ class SessionManager {
   private client: OpenAI | null = null;
   private systemPrompt: string = '';
   private knowledge: string = '';
+  private cancelFlags: Map<string, boolean> = new Map(); // 取消标志
   
   // 模型降级队列：从高级到低级
   private readonly MODEL_FALLBACK_QUEUE = [
     'qwen-vl-max-latest',
-    'qwen-vl-plus-latest',
+    'qwen-vl-max',
+    'Qwen-VL',
     'qwen3-vl-plus',
-    'qwen3-vl-flash'
+    'qwen-vl-max-inc',
+    'qwen-vl-plus-inc'
   ];
 
   initialize(apiKey: string, knowledge?: string) {
@@ -67,6 +71,16 @@ class SessionManager {
     
     // 构建系统提示词
     this.systemPrompt = `你是一个桌面AI助手，以可爱的小狗形象出现。
+
+**重要提示：你现在拥有MCP (Model Context Protocol) 能力！**
+
+你可以通过MCP工具访问外部服务和资源，例如：
+- 文件系统操作（读写文件、列出目录等）
+- 数据库查询
+- API调用
+- 更多扩展功能
+
+当你收到工具列表时，请积极使用这些工具来帮助用户完成任务。
 
 你的能力：
 1. 理解用户屏幕上的内容（通过截图）
@@ -216,6 +230,22 @@ class SessionManager {
         type: 'error',
         error: error.message,
       });
+    } finally {
+      // 确保无论如何都将状态设置为非running
+      if (session.status === 'running') {
+        session.status = 'completed';
+        session.updatedAt = Date.now();
+        
+        // 如果还在running状态，说明processAIRequest没有正常完成
+        // 发送completed通知确保前端UI更新
+        this.notifyWindows(sessionId, {
+          type: 'completed',
+          response: session.currentResponse,
+          usage: session.usage,
+        });
+        
+        logger.warn(`⚠️ Session ${sessionId} was still running, forced to completed`);
+      }
     }
   }
 
@@ -240,12 +270,16 @@ class SessionManager {
       try {
         logger.info(`🚀 Trying model: ${model} (${i + 1}/${this.MODEL_FALLBACK_QUEUE.length})`);
         
+        // 动态获取所有工具（本地 + MCP）
+        const allTools = await getAllTools();
+        logger.info(`📦 Using ${allTools.length} tools (local + MCP)`);
+        
         // 调用 API
         const stream = await this.client!.chat.completions.create({
           model: model,
           messages: chatMessages,
           stream: true,
-          tools: AI_TOOLS,
+          tools: allTools,
           tool_choice: 'auto'
         });
         
@@ -291,7 +325,7 @@ class SessionManager {
         // 如果还有更低级的模型，进行降级
         if (i < this.MODEL_FALLBACK_QUEUE.length - 1) {
           const nextModel = this.MODEL_FALLBACK_QUEUE[i + 1];
-          const message = `⚠️ 模型 ${model} 请求失败，触发降级，切换到模型：${nextModel}`;
+          const message = `✅ 模型 ${model} 请求失败，本轮对话自动切换到同级别模型：${nextModel}`;
           logger.warn(message);
           
           // 立即通知前端显示降级信息
@@ -476,15 +510,43 @@ class SessionManager {
 
       logger.info(`🔧 Executing tool: ${functionName}`, args);
 
-      // 通知用户正在执行工具
+      // 构建命令显示字符串
+      let commandDisplay = '';
+      switch (functionName) {
+        case 'execute_command':
+          commandDisplay = args.command;
+          break;
+        case 'read_file':
+          commandDisplay = `cat "${args.path}"`;
+          break;
+        case 'list_directory':
+          commandDisplay = args.recursive ? `ls -laR "${args.path}"` : `ls -la "${args.path}"`;
+          break;
+        case 'search_files':
+          commandDisplay = `grep -r "${args.pattern}" "${args.path}"`;
+          break;
+        case 'find_file':
+          commandDisplay = `find "${args.base_path || '~'}" -name "*${args.query}*"`;
+          break;
+        case 'smart_read':
+          commandDisplay = `smart_read "${args.query}"`;
+          break;
+        default:
+          commandDisplay = functionName;
+      }
+
+      // 通知前端：开始执行命令
       this.notifyWindows(sessionId, {
         type: 'tool-executing',
+        toolCallId: toolCall.id,
         toolName: functionName,
+        command: commandDisplay,
         args: args,
       });
 
       // 执行工具
       let result: string;
+      let status: 'completed' | 'failed' = 'completed';
       try {
         switch (functionName) {
           case 'find_file':
@@ -506,20 +568,38 @@ class SessionManager {
             result = await this.executeSearchFiles(args.pattern, args.path, args.recursive);
             break;
           default:
-            result = `Unknown tool: ${functionName}`;
+            // 检查是否是MCP工具（包含"__"分隔符）
+            if (functionName.includes('__')) {
+              try {
+                logger.info(`🔧 Routing to MCP tool: ${functionName}`);
+                const mcpResult = await mcpManager.callTool(functionName, args);
+                result = typeof mcpResult === 'string' ? mcpResult : JSON.stringify(mcpResult, null, 2);
+              } catch (mcpError: any) {
+                result = `MCP tool error: ${mcpError.message}`;
+                status = 'failed';
+                logger.error(`❌ MCP tool failed: ${functionName}`, mcpError);
+              }
+            } else {
+              result = `Unknown tool: ${functionName}`;
+              status = 'failed';
+            }
         }
       } catch (error: any) {
         result = `Error executing tool: ${error.message}`;
+        status = 'failed';
         logger.error(`❌ Tool execution failed:`, error);
       }
 
       logger.info(`✅ Tool executed: ${functionName}`);
 
-      // 通知工具执行完成
+      // 通知前端：命令执行完成
       this.notifyWindows(sessionId, {
         type: 'tool-completed',
+        toolCallId: toolCall.id,
         toolName: functionName,
-        result: result.substring(0, 200), // 只显示前200字符
+        command: commandDisplay,
+        result: result,
+        status: status,
       });
 
       // 将工具调用结果添加到消息历史
@@ -556,10 +636,25 @@ class SessionManager {
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  // 取消会话
+  cancelSession(sessionId: string): boolean {
+    logger.info(`🛑 Cancelling session: ${sessionId}`);
+    this.cancelFlags.set(sessionId, true);
+    
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.status = 'completed';
+      session.updatedAt = Date.now();
+    }
+    
+    return true;
+  }
+  
   // 删除会话
   deleteSession(sessionId: string): boolean {
     const deleted = this.sessions.delete(sessionId);
     if (deleted) {
+      this.cancelFlags.delete(sessionId);
       logger.info(`🗑️ Deleted session: ${sessionId}`);
     }
     return deleted;

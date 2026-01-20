@@ -60,10 +60,25 @@ export class AIService {
     }
 
     try {
+      // 获取可用的MCP工具
+      const mcpTools = await this.getMCPTools();
+      
       // 构建系统提示词
       let systemPrompt = SYSTEM_PROMPT;
       if (knowledge && knowledge.trim()) {
         systemPrompt += `\n\n**背景知识**\n${knowledge.trim()}`;
+      }
+      
+      // 添加MCP工具信息
+      if (mcpTools.length > 0) {
+        systemPrompt += `\n\n**可用的MCP工具**\n你可以使用以下工具来帮助用户：\n\n`;
+        mcpTools.forEach(tool => {
+          systemPrompt += `- **${tool.name}**: ${tool.description}\n`;
+          if (tool.inputSchema) {
+            systemPrompt += `  参数: ${JSON.stringify(tool.inputSchema)}\n`;
+          }
+        });
+        systemPrompt += `\n要使用工具，请在回复中明确说明你想使用哪个工具以及参数。\n`;
       }
 
       // 添加系统提示词
@@ -175,6 +190,62 @@ export class AIService {
 
   isInitialized(): boolean {
     return this.client !== null;
+  }
+  
+  // 获取所有已启用的MCP服务器的工具列表
+  private async getMCPTools(): Promise<Array<{
+    name: string;
+    description: string;
+    inputSchema?: any;
+    server: string;
+  }>> {
+    try {
+      // 获取所有MCP服务器
+      const servers = await window.electronAPI.mcpGetServers();
+      
+      const allTools: Array<{
+        name: string;
+        description: string;
+        inputSchema?: any;
+        server: string;
+      }> = [];
+      
+      // 获取每个已启用服务器的工具
+      for (const server of servers) {
+        if (!server.enabled) continue;
+        
+        // 检查服务器状态
+        const status = await window.electronAPI.mcpGetStatus(server.id);
+        if (status !== 'connected') {
+          logger.warn(`MCP服务器 ${server.name} 未连接，跳过`);
+          continue;
+        }
+        
+        try {
+          logger.info(`📡 正在获取 MCP 服务器 ${server.name} 的工具...`);
+          const tools = await window.electronAPI.mcpGetTools(server.id);
+          
+          // 添加服务器名称到工具
+          const toolsWithServer = tools.map((t: any) => ({
+            name: t.name,
+            description: t.description || t.name,
+            inputSchema: t.inputSchema,
+            server: server.name
+          }));
+          
+          allTools.push(...toolsWithServer);
+          logger.info(`✅ 从 ${server.name} 获取到 ${tools.length} 个工具`);
+        } catch (error) {
+          logger.warn(`获取MCP服务器 ${server.name} 的工具失败:`, error);
+        }
+      }
+      
+      logger.info(`📋 共找到 ${allTools.length} 个MCP工具`);
+      return allTools;
+    } catch (error) {
+      logger.error('获取MCP工具失败:', error);
+      return [];
+    }
   }
 }
 

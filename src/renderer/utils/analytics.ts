@@ -9,7 +9,7 @@ import { logger } from './logger';
  * 上报配置
  */
 const REPORT_CONFIG = {
-  url: 'https://tppwork.taobao.com/pre/recommend',
+  url: 'https://tppwork.taobao.com/center/recommend',
   appid: '55973',
   action: 'record',
 };

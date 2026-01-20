@@ -9,6 +9,8 @@ interface InputAreaProps {
 
 export function InputArea({ currentSessionId }: InputAreaProps) {
   const [input, setInput] = useState('');
+  const [includeScreenshot, setIncludeScreenshot] = useState(true); // 使用本地状态
+  const [includeClipboard, setIncludeClipboard] = useState(true); // 使用本地状态
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const noticeTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   
@@ -16,11 +18,7 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
   const addMessage = useChatStore((state) => state.addMessage);
   const setLoading = useChatStore((state) => state.setLoading);
   const setError = useChatStore((state) => state.setError);
-  const includeScreenshot = useChatStore((state) => state.includeScreenshot);
-  const includeClipboard = useChatStore((state) => state.includeClipboard);
   const contextTrimNotice = useChatStore((state) => state.contextTrimNotice);
-  const setIncludeScreenshot = useChatStore((state) => state.setIncludeScreenshot);
-  const setIncludeClipboard = useChatStore((state) => state.setIncludeClipboard);
   const setAutoClipboard = useChatStore((state) => state.setAutoClipboard);
   
   // 获取当前会话状态
@@ -33,13 +31,43 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
     textareaRef.current?.focus();
   }, []);
 
-  // 默认勾选选项
+  // 默认勾选选项（只在组件挂载时执行一次）
   React.useEffect(() => {
+    console.log('🔧 InputArea mounted, setting checkboxes to true');
     setIncludeScreenshot(true);
     setIncludeClipboard(true);
     setAutoClipboard(true);
-  }, [setIncludeScreenshot, setIncludeClipboard, setAutoClipboard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 空依赖数组，只在挂载时执行
+  
+  // 监听复选框状态变化
+  React.useEffect(() => {
+    console.log('📋 Checkbox states changed:', { includeScreenshot, includeClipboard });
+  }, [includeScreenshot, includeClipboard]);
 
+  // 监听completed事件，重置复选框
+  React.useEffect(() => {
+    if (!currentSessionId) return;
+    
+    const handleCompleted = () => {
+      console.log('🎉 Received completed, resetting checkboxes to false');
+      setIncludeScreenshot(false);
+      setIncludeClipboard(false);
+    };
+    
+    const handleSessionUpdate = (data: any) => {
+      if (data.sessionId === currentSessionId && data.type === 'completed') {
+        handleCompleted();
+      }
+    };
+    
+    window.electronAPI.onSessionUpdate(handleSessionUpdate);
+    
+    return () => {
+      window.electronAPI.offSessionUpdate(handleSessionUpdate);
+    };
+  }, [currentSessionId]);
+  
   // 组件卸载时清理定时器
   React.useEffect(() => {
     return () => {
@@ -172,9 +200,8 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
 
       logger.info(`✅ 消息已发送到主进程，会话ID: ${currentSessionId}`);
 
-      // 自动取消勾选截图选项
-      setIncludeScreenshot(false);
-      setIncludeClipboard(false);
+      // 注意：不在这里取消勾选，而是在收到completed事件时取消
+      // 这样可以保持按钮状态和复选框状态的一致性
 
     } catch (error: any) {
       console.error('Send message error:', error);
@@ -242,7 +269,7 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
           disabled={!input.trim() || isLoading}
           className="btn-primary self-end disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? '发送中...' : '发送'}
+          发送
         </button>
       </div>
     </div>

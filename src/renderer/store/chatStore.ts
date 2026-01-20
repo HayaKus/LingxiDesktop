@@ -41,6 +41,8 @@ interface ChatState {
   initSession: () => void;
   setCurrentUserMessage: (sessionId: string, message: string) => void;
   setCurrentImageCount: (sessionId: string, count: number) => void;
+  addToolExecution: (sessionId: string, execution: any) => void;
+  updateToolExecution: (sessionId: string, toolCallId: string, updates: any) => void;
   reportCurrentConversation: (
     sessionId: string,
     assistantMessage: string,
@@ -263,6 +265,68 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [sessionId]: {
             ...currentSession,
             currentImageCount: count,
+          },
+        },
+      };
+    }),
+  
+  // 添加工具执行记录到最后一条assistant消息
+  addToolExecution: (sessionId, execution) =>
+    set((state) => {
+      const currentSession = state.sessions[sessionId] || createDefaultSessionState();
+      const messages = [...currentSession.messages];
+      
+      // 找到最后一条assistant消息
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'assistant') {
+          const msg = messages[i] as any;
+          messages[i] = {
+            ...msg,
+            toolExecutions: [...(msg.toolExecutions || []), execution],
+          };
+          break;
+        }
+      }
+      
+      return {
+        sessions: {
+          ...state.sessions,
+          [sessionId]: {
+            ...currentSession,
+            messages,
+          },
+        },
+      };
+    }),
+  
+  // 更新工具执行状态
+  updateToolExecution: (sessionId, toolCallId, updates) =>
+    set((state) => {
+      const currentSession = state.sessions[sessionId] || createDefaultSessionState();
+      const messages = [...currentSession.messages];
+      
+      // 找到最后一条assistant消息并更新其中的工具执行记录
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'assistant') {
+          const msg = messages[i] as any;
+          if (msg.toolExecutions) {
+            messages[i] = {
+              ...msg,
+              toolExecutions: msg.toolExecutions.map((exec: any) =>
+                exec.id === toolCallId ? { ...exec, ...updates } : exec
+              ),
+            };
+          }
+          break;
+        }
+      }
+      
+      return {
+        sessions: {
+          ...state.sessions,
+          [sessionId]: {
+            ...currentSession,
+            messages,
           },
         },
       };
