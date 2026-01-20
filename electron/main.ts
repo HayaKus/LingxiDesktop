@@ -52,6 +52,36 @@ export function reregisterShortcut(newShortcut: string): boolean {
   }
 }
 
+// 注册Deep Link协议（用于OAuth回调）
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('lingxi', process.execPath, [process.argv[1]]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('lingxi');
+}
+
+// 处理Deep Link（macOS）
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  log.info('📡 Deep Link received:', url);
+  // URL会被oauthManager处理
+});
+
+// 处理Deep Link（Windows/Linux）
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Windows/Linux下，Deep Link会作为命令行参数传入
+    const url = commandLine.find(arg => arg.startsWith('lingxi://'));
+    if (url) {
+      log.info('📡 Deep Link received:', url);
+    }
+  });
+}
+
 /**
  * 应用启动
  */

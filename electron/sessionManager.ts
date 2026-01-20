@@ -271,7 +271,9 @@ class SessionManager {
         logger.info(`🚀 Trying model: ${model} (${i + 1}/${this.MODEL_FALLBACK_QUEUE.length})`);
         
         // 动态获取所有工具（本地 + MCP）
+        console.log('🎯 [sessionManager] 准备调用 getAllTools()...');
         const allTools = await getAllTools();
+        console.log(`📦 [sessionManager] getAllTools() 返回了 ${allTools.length} 个工具`);
         logger.info(`📦 Using ${allTools.length} tools (local + MCP)`);
         
         // 调用 API

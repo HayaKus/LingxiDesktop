@@ -82,12 +82,13 @@ function App() {
     if (!currentSessionId) return;
     
     const handleSessionUpdate = (data: any) => {
-      console.log('Session update:', data, 'Current session:', currentSessionId);
-      console.log('Event type:', data.type, 'Event sessionId:', data.sessionId, 'Match:', data.sessionId === currentSessionId);
+      // 只对重要事件打印日志，chunk事件太频繁不打印
+      if (data.type !== 'chunk') {
+        console.log('Session update:', data.type, 'sessionId:', data.sessionId);
+      }
       
       // 严格检查：只处理当前会话的更新
       if (data.sessionId !== currentSessionId) {
-        console.log('Ignoring update for different session');
         return;
       }
       

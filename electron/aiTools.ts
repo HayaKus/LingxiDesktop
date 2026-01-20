@@ -152,11 +152,19 @@ export type AITool = typeof LOCAL_TOOLS[number];
 // 动态获取所有工具（本地工具 + MCP工具）
 export async function getAllTools(): Promise<any[]> {
   try {
+    console.log('🔧 [aiTools] 开始获取MCP工具...');
     const mcpTools = await mcpManager.getAllTools();
-    return [...LOCAL_TOOLS, ...mcpTools];
+    console.log(`📦 [aiTools] 获取到 ${mcpTools.length} 个MCP工具`);
+    if (mcpTools.length > 0) {
+      console.log('🔧 [aiTools] MCP工具列表:', mcpTools.map(t => t.function?.name).join(', '));
+    }
+    const allTools = [...LOCAL_TOOLS, ...mcpTools];
+    console.log(`✅ [aiTools] 总计 ${allTools.length} 个工具 (${LOCAL_TOOLS.length} 本地 + ${mcpTools.length} MCP)`);
+    return allTools;
   } catch (error) {
-    console.error('Failed to get MCP tools:', error);
+    console.error('❌ [aiTools] 获取MCP工具失败:', error);
     // 如果MCP工具获取失败，至少返回本地工具
+    console.log(`⚠️ [aiTools] 回退到只使用本地工具: ${LOCAL_TOOLS.length} 个`);
     return LOCAL_TOOLS;
   }
 }

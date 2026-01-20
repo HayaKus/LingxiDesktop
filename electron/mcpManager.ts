@@ -54,8 +54,16 @@ class MCPManager {
           
           const client = createMCPClient(config);
           await client.connect();
+          
+          // ⚠️ 连接后，client可能已更新config.tokens（在OAuth流程中）
+          // 需要获取更新后的config并保存
+          this.configs.set(config.id, config);
+          
           this.clients.set(config.id, client);
           logger.info(`✅ MCP server connected: ${config.name}`);
+          
+          // 保存tokens到磁盘
+          await this.saveConfigsToDisk();
         } catch (error: any) {
           logger.warn(`⚠️ Could not connect to MCP server: ${config.name}`, error);
           // 不抛出错误，允许保存配置
@@ -64,6 +72,21 @@ class MCPManager {
     } catch (error: any) {
       logger.error(`❌ Failed to add MCP server: ${config.name}`, error);
       throw error;
+    }
+  }
+  
+  // 保存配置到磁盘
+  private async saveConfigsToDisk(): Promise<void> {
+    try {
+      const Store = require('electron-store');
+      const store = new Store();
+      const configs = Array.from(this.configs.values());
+      store.set('mcpServers', configs);
+      console.log(`💾 [MCP] Saved ${configs.length} server configs to disk`);
+      logger.info(`💾 Saved ${configs.length} MCP server configs`);
+    } catch (error) {
+      console.error('❌ [MCP] Failed to save configs to disk:', error);
+      logger.error('Failed to save MCP configs:', error);
     }
   }
   
@@ -191,12 +214,29 @@ class MCPManager {
   
   // 获取所有MCP工具（合并为OpenAI格式）
   async getAllTools(): Promise<any[]> {
+    console.log('🔍 [mcpManager] getAllTools() 被调用');
+    console.log(`📡 [mcpManager] 当前已连接的服务器数量: ${this.clients.size}`);
+    console.log(`📋 [mcpManager] 当前配置的服务器数量: ${this.configs.size}`);
+    
     const allTools: any[] = [];
+    
+    // 列出所有服务器
+    for (const [serverId, config] of this.configs.entries()) {
+      const isConnected = this.clients.has(serverId);
+      console.log(`  - ${config.name} (${serverId}): ${isConnected ? '✅ 已连接' : '❌ 未连接'}, enabled: ${config.enabled}`);
+    }
     
     for (const [serverId, client] of this.clients.entries()) {
       try {
         const config = this.configs.get(serverId)!;
+        console.log(`🔧 [mcpManager] 正在从 ${config.name} 获取工具...`);
+        
         const tools = await client.getTools();
+        console.log(`📦 [mcpManager] ${config.name} 返回了 ${tools.length} 个工具`);
+        
+        if (tools.length > 0) {
+          console.log(`   工具列表:`, tools.map(t => t.name).join(', '));
+        }
         
         // 转换为OpenAI Function格式，添加服务器前缀
         const formattedTools = tools.map(tool => ({
@@ -213,12 +253,15 @@ class MCPManager {
         }));
         
         allTools.push(...formattedTools);
+        console.log(`✅ [mcpManager] 已添加 ${formattedTools.length} 个工具从 ${config.name}`);
         logger.info(`📦 Added ${formattedTools.length} tools from ${config.name}`);
       } catch (error: any) {
+        console.error(`❌ [mcpManager] 从 ${serverId} 获取工具失败:`, error);
         logger.error(`❌ Failed to get tools from ${serverId}:`, error);
       }
     }
     
+    console.log(`📊 [mcpManager] 总计获取到 ${allTools.length} 个MCP工具`);
     logger.info(`📦 Total MCP tools available: ${allTools.length}`);
     return allTools;
   }

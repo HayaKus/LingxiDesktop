@@ -9,6 +9,7 @@ export interface OAuthConfig {
   clientSecret?: string; // 客户端密钥（可选，公开客户端不需要）
   scopes: string[];     // 权限范围
   redirectUri: string;  // 重定向URI
+  resource?: string;    // RFC 8707 Resource参数（可选）
 }
 
 export interface OAuthTokens {
@@ -77,6 +78,12 @@ class OAuthManager {
         authUrl.searchParams.set('code_challenge_method', 'S256');
         authUrl.searchParams.set('scope', config.scopes.join(' '));
         authUrl.searchParams.set('state', state);
+        
+        // RFC 8707 - Resource Indicators（如果提供）
+        if (config.resource) {
+          authUrl.searchParams.set('resource', config.resource);
+          console.log('   Resource:', config.resource);
+        }
 
         console.log('🌐 [OAuth] Opening authorization window...');
         console.log('   URL:', authUrl.toString());
@@ -203,11 +210,6 @@ class OAuthManager {
 
       console.log('🔑 [OAuth] Authorization code received, exchanging for token...');
 
-      // 关闭授权窗口
-      if (!authWindow.isDestroyed()) {
-        authWindow.close();
-      }
-
       // 5. 用code换取access token
       const tokens = await this.exchangeCodeForToken(
         code,
@@ -220,8 +222,15 @@ class OAuthManager {
       console.log('   Expires in:', tokens.expires_in || 'unknown');
       console.log('   Has refresh token:', !!tokens.refresh_token);
 
-      pending.resolve(tokens);
+      // ⚠️ 在resolve之前删除pendingAuth并关闭窗口
       this.pendingAuths.delete(state);
+      
+      // 关闭授权窗口
+      if (!authWindow.isDestroyed()) {
+        authWindow.close();
+      }
+
+      pending.resolve(tokens);
 
     } catch (error: any) {
       console.error('❌ [OAuth] Callback handling failed:', error);
@@ -244,26 +253,34 @@ class OAuthManager {
     console.log('🔄 [OAuth] Exchanging code for token...');
     console.log('   Token URL:', config.tokenUrl);
 
-    const body: any = {
-      grant_type: 'authorization_code',
-      code: code,
-      redirect_uri: config.redirectUri,
-      client_id: config.clientId,
-      code_verifier: codeVerifier
-    };
+    // 构建表单数据（使用URLSearchParams）
+    const params = new URLSearchParams();
+    params.append('grant_type', 'authorization_code');
+    params.append('code', code);
+    params.append('redirect_uri', config.redirectUri);
+    params.append('client_id', config.clientId);
+    params.append('code_verifier', codeVerifier);
 
     // 如果有client_secret，添加到请求中
     if (config.clientSecret) {
-      body.client_secret = config.clientSecret;
+      params.append('client_secret', config.clientSecret);
     }
+    
+    // RFC 8707 - Resource Indicators（如果提供）
+    if (config.resource) {
+      params.append('resource', config.resource);
+      console.log('   Resource:', config.resource);
+    }
+
+    console.log('   Request body (form):', params.toString());
 
     const response = await fetch(config.tokenUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: params.toString()
     });
 
     console.log('📡 [OAuth] Token response status:', response.status);
@@ -287,23 +304,23 @@ class OAuthManager {
   ): Promise<OAuthTokens> {
     console.log('🔄 [OAuth] Refreshing access token...');
 
-    const body: any = {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: config.clientId
-    };
+    // 构建表单数据（使用URLSearchParams）
+    const params = new URLSearchParams();
+    params.append('grant_type', 'refresh_token');
+    params.append('refresh_token', refreshToken);
+    params.append('client_id', config.clientId);
 
     if (config.clientSecret) {
-      body.client_secret = config.clientSecret;
+      params.append('client_secret', config.clientSecret);
     }
 
     const response = await fetch(config.tokenUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: params.toString()
     });
 
     if (!response.ok) {

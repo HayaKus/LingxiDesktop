@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { BrowserWindow } from 'electron';
+import { oauthManager } from './oauthManager';
 
 // 使用require导入eventsource以避免TypeScript类型问题
 const EventSource = require('eventsource');
@@ -62,22 +63,31 @@ interface IMCPClient {
 
 // HTTP客户端
 class HTTPMCPClient implements IMCPClient {
+  private sessionId: string | null = null;
+  
   constructor(private config: MCPServerConfig) {}
   
   async connect(): Promise<void> {
     const startTime = Date.now();
-    sendLogToRenderer('\n========================================');
-    sendLogToRenderer(`🔌 [MCP TEST] Starting MCP 2025-06-18 OAuth Flow`);
-    sendLogToRenderer(`   Time: ${new Date().toLocaleString('zh-CN')}`);
-    sendLogToRenderer(`   Server: ${this.config.name}`);
-    sendLogToRenderer(`   Base URL: ${this.config.url}`);
-    sendLogToRenderer(`   Type: ${this.config.type}`);
-    sendLogToRenderer('========================================\n');
+    console.log('🔌 [MCP] Connecting to:', this.config.name);
+    console.log('   URL:', this.config.url);
+    console.log('   Has tokens:', !!this.config.tokens);
     
     try {
+      // 如果已经有token，直接添加到headers并返回
+      if (this.config.tokens?.access_token) {
+        console.log('✅ [MCP] Using existing access token');
+        this.config.headers = this.config.headers || {};
+        this.config.headers['Authorization'] = `${this.config.tokens.token_type} ${this.config.tokens.access_token}`;
+        logger.info(`✅ HTTP MCP connected with existing token: ${this.config.name}`);
+        return;
+      }
+      
+      // 没有token，需要进行OAuth授权
+      console.log('🔐 [MCP] No token found, starting OAuth flow...');
+      
       // ===== 第一步：发送不带token的请求，触发401以获取WWW-Authenticate =====
-      sendLogToRenderer('📡 [STEP 1/7] Initial request without token...');
-      sendLogToRenderer('   Purpose: Trigger 401 to discover Authorization Server');
+      console.log('📡 [STEP 1/7] Initial request without token...');
       
       const initialRequest = await fetch(this.config.url, {
         method: 'POST',
@@ -196,60 +206,47 @@ class HTTPMCPClient implements IMCPClient {
       
       sendLogToRenderer(`   Client ID: ${clientId}`);
       
-      // ===== 第六步：OAuth 2.1 Authorization with PKCE + Resource Parameter =====
-      sendLogToRenderer('\n📡 [STEP 6/7] OAuth 2.1 Authorization Flow (RFC 8707 Resource Indicators)...');
-      
-      // 生成PKCE参数
-      const codeVerifier = this.generateCodeVerifier();
-      const codeChallenge = await this.generateCodeChallenge(codeVerifier);
-      const state = this.generateState();
-      
-      // 构建授权URL - 包含resource参数 (RFC 8707)
-      const authUrl = new URL(asMetadata.authorization_endpoint);
-      authUrl.searchParams.set('client_id', clientId);
-      authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('redirect_uri', this.config.oauth?.redirectUri || 'lingxi://oauth/callback');
-      authUrl.searchParams.set('code_challenge', codeChallenge);
-      authUrl.searchParams.set('code_challenge_method', 'S256');
-      authUrl.searchParams.set('state', state);
-      authUrl.searchParams.set('resource', this.config.url); // RFC 8707 - 关键！
-      
-      if (this.config.oauth?.scopes && this.config.oauth.scopes.length > 0) {
-        authUrl.searchParams.set('scope', this.config.oauth.scopes.join(' '));
-      }
-      
-      sendLogToRenderer(`   Authorization URL: ${authUrl.href.substring(0, 150)}...`);
-      sendLogToRenderer(`   Resource Parameter: ${this.config.url} (RFC 8707)`);
-      sendLogToRenderer(`   PKCE: code_challenge generated`);
-      sendLogToRenderer(`   State: ${state}`);
-      
-      sendLogToRenderer('\n   ⚠️ User interaction required!');
+      // ===== 第六步和第七步：使用oauthManager完成完整的OAuth授权流程 =====
+      sendLogToRenderer('\n📡 [STEP 6-7/7] OAuth 2.1 Authorization & Token Exchange...');
       sendLogToRenderer('   Opening authorization window...');
+      sendLogToRenderer('   ⚠️ Please login and authorize in the popup window');
       
-      // 这里需要打开浏览器窗口让用户授权
-      // 实际实现需要：
-      // 1. 打开BrowserWindow
-      // 2. 监听redirect_uri回调
-      // 3. 提取authorization_code
-      // 4. 用code + code_verifier换取token
+      // 使用oauthManager执行完整的OAuth流程
+      const tokens = await oauthManager.authorize({
+        authUrl: asMetadata.authorization_endpoint,
+        tokenUrl: asMetadata.token_endpoint,
+        clientId: clientId,
+        clientSecret: clientSecret,
+        scopes: this.config.oauth?.scopes || [],
+        redirectUri: this.config.oauth?.redirectUri || 'lingxi://oauth/callback',
+        resource: this.config.url  // RFC 8707 - 传递resource参数
+      });
       
-      sendLogToRenderer('\n   📝 Note: Full OAuth flow requires user interaction');
-      sendLogToRenderer('   This would open a browser window for user authorization');
-      sendLogToRenderer('   After user consent, exchange code for token with:');
-      sendLogToRenderer(`   - code_verifier: ${codeVerifier.substring(0, 20)}...`);
-      sendLogToRenderer(`   - resource: ${this.config.url} (RFC 8707)`);
+      sendLogToRenderer(`   ✅ Access Token received!`);
+      sendLogToRenderer(`   Token type: ${tokens.token_type}`);
+      sendLogToRenderer(`   Expires in: ${tokens.expires_in || 'unknown'} seconds`);
+      sendLogToRenderer(`   Has refresh token: ${!!tokens.refresh_token}`);
       
-      // ===== 第七步：Token Exchange =====
-      sendLogToRenderer('\n📡 [STEP 7/7] Token Exchange...');
-      sendLogToRenderer('   (Skipped in test mode - requires user authorization)');
+      // 保存tokens到config
+      this.config.tokens = {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined,
+        token_type: tokens.token_type
+      };
+      
+      // 添加到headers
+      this.config.headers = this.config.headers || {};
+      this.config.headers['Authorization'] = `${tokens.token_type} ${tokens.access_token}`;
       
       sendLogToRenderer('\n========================================');
-      sendLogToRenderer(`✅ OAuth Discovery SUCCESSFUL (${Date.now() - startTime}ms)`);
-      sendLogToRenderer('   All OAuth endpoints discovered correctly!');
-      sendLogToRenderer('   To complete: Configure client_id or enable dynamic registration');
+      sendLogToRenderer(`✅ OAuth Authorization COMPLETE (${Date.now() - startTime}ms)`);
+      sendLogToRenderer('   Access token has been obtained and saved!');
+      sendLogToRenderer('   You can now use MCP tools.');
       sendLogToRenderer('========================================\n');
       
-      logger.info(`✅ HTTP MCP OAuth discovery completed: ${this.config.name}`);
+      logger.info(`✅ HTTP MCP OAuth completed: ${this.config.name}`);
       
     } catch (error: any) {
       sendLogToRenderer('\n❌ [EXCEPTION] OAuth discovery failed!', 'error');
@@ -506,27 +503,169 @@ class HTTPMCPClient implements IMCPClient {
   }
   
   async getTools(): Promise<any[]> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.config.timeout || 30000);
+    console.log(`\n========================================`);
+    console.log(`🔧 [HTTPMCPClient] getTools() 被调用`);
+    console.log(`   Server: ${this.config.name}`);
+    console.log(`   URL: ${this.config.url}`);
+    console.log(`   Session ID: ${this.sessionId || 'Not initialized yet'}`);
+    console.log(`========================================`);
     
-    const response = await fetch(`${this.config.url}/tools/list`, {
+    // 如果没有Session ID，先初始化
+    if (!this.sessionId) {
+      console.log(`   ⚠️ No session ID, initializing first...`);
+      await this.initializeSession();
+    }
+    
+    const controller = new AbortController();
+    const timeout = 5000; // getTools应该很快返回，设置5秒超时
+    const timeoutId = setTimeout(() => {
+      console.error(`\n❌ [HTTPMCPClient] getTools TIMEOUT after ${timeout}ms`);
+      console.error(`   This is unusual - getTools should return quickly!`);
+      console.error(`   Possible issues:`);
+      console.error(`   1. Network connectivity problem`);
+      console.error(`   2. Server is hanging/not responding`);
+      console.error(`   3. Request blocked by firewall/proxy`);
+      controller.abort();
+    }, timeout);
+    
+    try {
+      // MCP标准：使用JSON-RPC格式
+      const requestBody = {
+        jsonrpc: '2.0',
+        method: 'tools/list',
+        params: {},
+        id: 2
+      };
+      
+      console.log(`\n📤 [REQUEST] Preparing tools/list request:`);
+      console.log(`   Method: POST`);
+      console.log(`   URL: ${this.config.url}`);
+      console.log(`   Body:`, JSON.stringify(requestBody));
+      
+      // 构建headers，包含Session ID
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(this.config.headers || {})
+      };
+      
+      if (this.sessionId) {
+        headers['Mcp-Session-Id'] = this.sessionId;
+      }
+      
+      console.log(`   Headers:`);
+      Object.entries(headers).forEach(([key, value]) => {
+        if (key.toLowerCase() === 'authorization' && value.length > 30) {
+          console.log(`      ${key}: ${value.substring(0, 30)}...`);
+        } else {
+          console.log(`      ${key}: ${value}`);
+        }
+      });
+      
+      console.log(`\n🚀 [SENDING] Sending request at ${new Date().toISOString()}...`);
+      const startTime = Date.now();
+      
+      const response = await fetch(this.config.url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      const duration = Date.now() - startTime;
+      console.log(`\n📥 [RESPONSE] Received response after ${duration}ms`);
+      console.log(`   Status: ${response.status} ${response.statusText}`);
+      console.log(`   Response headers:`);
+      response.headers.forEach((value, key) => {
+        console.log(`      ${key}: ${value}`);
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`\n❌ [ERROR] HTTP ${response.status}:`);
+        console.error(`   ${errorText}`);
+        throw new Error(`Failed to get tools: ${response.status} ${errorText}`);
+      }
+      
+      const responseText = await response.text();
+      console.log(`\n📋 [BODY] Response body (${responseText.length} bytes):`);
+      if (responseText.length <= 1000) {
+        console.log(responseText);
+      } else {
+        console.log(responseText.substring(0, 1000) + `\n... (${responseText.length - 1000} more bytes)`);
+      }
+      
+      const data = JSON.parse(responseText);
+      
+      // MCP标准响应格式: { jsonrpc: "2.0", result: { tools: [...] }, id: 2 }
+      const tools = data.result?.tools || data.tools || [];
+      
+      console.log(`\n✅ [SUCCESS] Got ${tools.length} tools from ${this.config.name}`);
+      if (tools.length > 0) {
+        console.log(`   Tools:`);
+        tools.forEach((tool: any, index: number) => {
+          console.log(`   ${index + 1}. ${tool.name} - ${tool.description || 'No description'}`);
+        });
+      }
+      console.log(`========================================\n`);
+      
+      logger.info(`📦 Got ${tools.length} tools from ${this.config.name}`);
+      return tools;
+      
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      console.error(`\n❌ [EXCEPTION] getTools failed:`);
+      console.error(`   Error type: ${error.name}`);
+      console.error(`   Error message: ${error.message}`);
+      if (error.cause) {
+        console.error(`   Cause: ${error.cause}`);
+      }
+      console.error(`========================================\n`);
+      throw error;
+    }
+  }
+  
+  // 初始化会话，获取Session ID
+  private async initializeSession(): Promise<void> {
+    console.log(`🔄 [HTTPMCPClient] 初始化会话...`);
+    
+    const initBody = {
+      jsonrpc: '2.0',
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'lingxi', version: '0.1.0' }
+      },
+      id: 1
+    };
+    
+    const response = await fetch(this.config.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(this.config.headers || {})
       },
-      signal: controller.signal
+      body: JSON.stringify(initBody)
     });
     
-    clearTimeout(timeoutId);
+    console.log(`   Initialize response: ${response.status}`);
     
-    if (!response.ok) {
-      throw new Error(`Failed to get tools: ${response.statusText}`);
+    // 从响应头获取Session ID
+    const sessionId = response.headers.get('mcp-session-id');
+    if (sessionId) {
+      this.sessionId = sessionId;
+      console.log(`   ✅ Got Session ID: ${sessionId}`);
+      logger.info(`📋 MCP Session initialized: ${sessionId}`);
+    } else {
+      console.warn(`   ⚠️ No Mcp-Session-Id in response headers`);
+      logger.warn(`⚠️ MCP server did not return Session ID`);
     }
     
-    const data = await response.json();
-    logger.info(`📦 Got ${data.tools?.length || 0} tools from ${this.config.name}`);
-    return data.tools || [];
+    // 读取响应体（可能包含初始化信息）
+    const responseText = await response.text();
+    console.log(`   Response body: ${responseText.substring(0, 200)}`);
   }
   
   async callTool(name: string, args: any): Promise<any> {
