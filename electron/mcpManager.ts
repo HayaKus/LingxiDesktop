@@ -238,11 +238,11 @@ class MCPManager {
           console.log(`   工具列表:`, tools.map(t => t.name).join(', '));
         }
         
-        // 转换为OpenAI Function格式，添加服务器前缀
+        // 转换为OpenAI Function格式，添加mcp_前缀和服务器名
         const formattedTools = tools.map(tool => ({
           type: 'function',
           function: {
-            name: `${config.name}__${tool.name}`,  // 前缀避免冲突
+            name: `mcp_${config.name}__${tool.name}`,  // mcp_前缀 + 服务器名 + 工具名
             description: `[MCP: ${config.name}] ${tool.description || tool.name}`,
             parameters: tool.inputSchema || { 
               type: 'object', 
@@ -268,8 +268,14 @@ class MCPManager {
   
   // 调用MCP工具
   async callTool(toolName: string, args: any): Promise<any> {
-    // 从工具名解析服务器名: "服务器名__工具名"
-    const parts = toolName.split('__');
+    // 从工具名解析: "mcp_服务器名__工具名"
+    // 先移除 mcp_ 前缀
+    let nameWithoutPrefix = toolName;
+    if (toolName.startsWith('mcp_')) {
+      nameWithoutPrefix = toolName.substring(4); // 移除 "mcp_"
+    }
+    
+    const parts = nameWithoutPrefix.split('__');
     if (parts.length !== 2) {
       throw new Error(`Invalid MCP tool name format: ${toolName}`);
     }

@@ -550,41 +550,72 @@ class SessionManager {
       let result: string;
       let status: 'completed' | 'failed' = 'completed';
       try {
-        switch (functionName) {
-          case 'find_file':
-            result = await this.executeFindFile(args.query, args.file_type, args.base_path, args.max_results);
-            break;
-          case 'smart_read':
-            result = await this.executeSmartRead(args.query, args.file_type, args.base_path);
-            break;
-          case 'read_file':
-            result = await this.executeReadFile(args.path);
-            break;
-          case 'list_directory':
-            result = await this.executeListDirectory(args.path, args.recursive);
-            break;
-          case 'execute_command':
-            result = await this.executeCommand(args.command, args.cwd);
-            break;
-          case 'search_files':
-            result = await this.executeSearchFiles(args.pattern, args.path, args.recursive);
-            break;
-          default:
-            // 检查是否是MCP工具（包含"__"分隔符）
-            if (functionName.includes('__')) {
-              try {
-                logger.info(`🔧 Routing to MCP tool: ${functionName}`);
-                const mcpResult = await mcpManager.callTool(functionName, args);
-                result = typeof mcpResult === 'string' ? mcpResult : JSON.stringify(mcpResult, null, 2);
-              } catch (mcpError: any) {
-                result = `MCP tool error: ${mcpError.message}`;
+        // 处理带前缀的工具名
+        let actualFunctionName = functionName;
+        let isMCPTool = false;
+        let isLocalTool = false;
+        
+        // 检查是否是MCP工具（mcp_开头）
+        if (functionName.startsWith('mcp_')) {
+          isMCPTool = true;
+        }
+        // 检查是否是本地工具（local_开头）
+        else if (functionName.startsWith('local_')) {
+          isLocalTool = true;
+          actualFunctionName = functionName.substring(6); // 移除 "local_"
+        }
+        
+        // 如果是MCP工具，直接调用mcpManager
+        if (isMCPTool) {
+          try {
+            logger.info(`🔧 Routing to MCP tool: ${functionName}`);
+            const mcpResult = await mcpManager.callTool(functionName, args);
+            result = typeof mcpResult === 'string' ? mcpResult : JSON.stringify(mcpResult, null, 2);
+          } catch (mcpError: any) {
+            result = `MCP tool error: ${mcpError.message}`;
+            status = 'failed';
+            logger.error(`❌ MCP tool failed: ${functionName}`, mcpError);
+          }
+        }
+        // 本地工具处理
+        else {
+          switch (actualFunctionName) {
+            case 'find_file':
+              result = await this.executeFindFile(args.query, args.file_type, args.base_path, args.max_results);
+              break;
+            case 'smart_read':
+              result = await this.executeSmartRead(args.query, args.file_type, args.base_path);
+              break;
+            case 'read_file':
+              result = await this.executeReadFile(args.path);
+              break;
+            case 'list_directory':
+              result = await this.executeListDirectory(args.path, args.recursive);
+              break;
+            case 'execute_command':
+              result = await this.executeCommand(args.command, args.cwd);
+              break;
+            case 'search_files':
+              result = await this.executeSearchFiles(args.pattern, args.path, args.recursive);
+              break;
+            default:
+              // 向后兼容：检查是否是旧格式的MCP工具（包含"__"但没有mcp_前缀）
+              if (functionName.includes('__')) {
+                try {
+                  logger.info(`🔧 Routing to MCP tool (legacy format): ${functionName}`);
+                  const mcpResult = await mcpManager.callTool(functionName, args);
+                  result = typeof mcpResult === 'string' ? mcpResult : JSON.stringify(mcpResult, null, 2);
+                } catch (mcpError: any) {
+                  result = `MCP tool error: ${mcpError.message}`;
+                  status = 'failed';
+                  logger.error(`❌ MCP tool failed: ${functionName}`, mcpError);
+                }
+              } else {
+                result = `Unknown tool: ${functionName}`;
                 status = 'failed';
-                logger.error(`❌ MCP tool failed: ${functionName}`, mcpError);
               }
-            } else {
-              result = `Unknown tool: ${functionName}`;
-              status = 'failed';
-            }
+              break;
+          }
         }
       } catch (error: any) {
         result = `Error executing tool: ${error.message}`;

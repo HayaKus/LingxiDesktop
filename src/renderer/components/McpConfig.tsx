@@ -179,21 +179,6 @@ export function McpConfig({ onClose }: McpConfigProps) {
                   <option value="http">HTTP</option>
                   <option value="sse">SSE (Server-Sent Events)</option>
                 </select>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    HTTP Headers（静态鉴权/自定义头）
-                  </label>
-                  <textarea
-                    placeholder={'例如：\nAuthorization: Bearer your-token\nX-Custom-Header: value'}
-                    value={headersText}
-                    onChange={(e) => setHeadersText(e.target.value)}
-                    className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                    rows={4}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    每行一个header，格式：Header-Name: Value（静态token）
-                  </p>
-                </div>
                 
                 {/* OAuth 2.1 配置 */}
                 <div className="border rounded-lg p-3 bg-white">

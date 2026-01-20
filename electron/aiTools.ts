@@ -158,14 +158,31 @@ export async function getAllTools(): Promise<any[]> {
     if (mcpTools.length > 0) {
       console.log('🔧 [aiTools] MCP工具列表:', mcpTools.map(t => t.function?.name).join(', '));
     }
-    const allTools = [...LOCAL_TOOLS, ...mcpTools];
+    
+    // 给本地工具添加 local_ 前缀
+    const localToolsWithPrefix = LOCAL_TOOLS.map(tool => ({
+      ...tool,
+      function: {
+        ...tool.function,
+        name: `local_${tool.function.name}`
+      }
+    }));
+    
+    const allTools = [...localToolsWithPrefix, ...mcpTools];
     console.log(`✅ [aiTools] 总计 ${allTools.length} 个工具 (${LOCAL_TOOLS.length} 本地 + ${mcpTools.length} MCP)`);
     return allTools;
   } catch (error) {
     console.error('❌ [aiTools] 获取MCP工具失败:', error);
     // 如果MCP工具获取失败，至少返回本地工具
     console.log(`⚠️ [aiTools] 回退到只使用本地工具: ${LOCAL_TOOLS.length} 个`);
-    return LOCAL_TOOLS;
+    // 本地工具也要加前缀
+    return LOCAL_TOOLS.map(tool => ({
+      ...tool,
+      function: {
+        ...tool.function,
+        name: `local_${tool.function.name}`
+      }
+    }));
   }
 }
 
