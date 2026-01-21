@@ -1,6 +1,6 @@
 {
   "name": "lingxi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "灵析 - 具备屏幕感知能力的桌面AI助手",
   "main": "dist/electron/main.js",
   "author": "哈雅 (263321)",
