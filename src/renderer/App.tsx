@@ -104,10 +104,11 @@ function App() {
         });
       } else if (data.type === 'tool-executing') {
         // 工具开始执行
-        console.log('🔧 Tool executing:', data.toolName, data.command);
+        console.log('🔧 Tool executing:', data.toolName, data.command, data.args);
         useChatStore.getState().addToolExecution(currentSessionId, {
           id: data.toolCallId,
           command: data.command,
+          args: data.args,
           status: 'executing',
           result: null,
         });

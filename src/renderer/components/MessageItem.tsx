@@ -155,6 +155,20 @@ export const MessageItem = memo(function MessageItem({ message }: MessageItemPro
                         </div>
                       </div>
                       
+                      {/* 查看输入参数 */}
+                      {exec.args && (
+                        <details className="border-t border-gray-300">
+                          <summary className="px-3 py-2 bg-gray-50 cursor-pointer text-sm text-gray-600 hover:bg-gray-100 select-none">
+                            📥 查看输入
+                          </summary>
+                          <div className="px-3 py-2 bg-white">
+                            <pre className="text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap max-h-96 overflow-y-auto">
+                              {JSON.stringify(exec.args, null, 2)}
+                            </pre>
+                          </div>
+                        </details>
+                      )}
+                      
                       {/* 命令输出结果 */}
                       {exec.result && (
                         <details open={exec.status === 'completed' || exec.status === 'failed'} className="border-t border-gray-300">
