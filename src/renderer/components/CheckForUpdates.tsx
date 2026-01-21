@@ -113,19 +113,32 @@ export function CheckForUpdates() {
                     </div>
                   )}
                   
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={handleDownload}
-                      className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-medium"
-                    >
-                      立即下载
-                    </button>
-                    <button
-                      onClick={() => setShowDetails(false)}
-                      className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-xs"
-                    >
-                      稍后提醒
-                    </button>
+                  <div className="mt-3 space-y-2">
+                    {/* 下载提示 */}
+                    <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                      <div className="flex items-start gap-2">
+                        <span className="text-base">⚠️</span>
+                        <div>
+                          <div className="font-medium mb-1">重要提示：</div>
+                          <div>请等待 DMG 文件完全下载完成后再打开。中途打开会显示"未能打开磁盘映像：磁盘映像已损坏"的错误。</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleDownload}
+                        className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-medium"
+                      >
+                        立即下载
+                      </button>
+                      <button
+                        onClick={() => setShowDetails(false)}
+                        className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-xs"
+                      >
+                        稍后提醒
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
