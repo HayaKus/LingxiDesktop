@@ -19,7 +19,7 @@ npm run electron:build
 
 # 提交代码
 git add package.json version.json
-git commit -m "发布 v0.1.6"
+git commit -m "发布 v0.1.7"
 git push github master
 
 # 在 GitHub 创建 Release 并上传 DMG
