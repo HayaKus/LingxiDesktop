@@ -1,4 +1,4 @@
-# 灵析 (IamDog)
+# 灵析 (LingxiDesktop)
 
 具备屏幕感知能力的桌面AI助手
 
@@ -8,15 +8,15 @@
 
 ```bash
 # 添加 Tap
-brew tap HayaKus/iamdog
+brew tap HayaKus/homebrew-lingxidesktop
 
 # 安装
-brew install --cask iamdog
+brew install --cask lingxidesktop
 ```
 
 ### 手动下载安装
 
-从 [GitHub Releases](https://github.com/HayaKus/IamDog/releases) 下载最新版本的 DMG 文件。
+从 [GitHub Releases](https://github.com/HayaKus/LingxiDesktop/releases) 下载最新版本的 DMG 文件。
 
 ## 🔄 更新
 
@@ -27,7 +27,7 @@ brew install --cask iamdog
 brew update
 
 # 升级到最新版本
-brew upgrade --cask iamdog
+brew upgrade --cask lingxidesktop
 ```
 
 ### 手动安装用户
@@ -79,7 +79,7 @@ npm run electron:build
 ## 📦 项目结构
 
 ```
-IamDog/
+LingxiDesktop/
 ├── electron/           # Electron 主进程
 ├── src/               # 渲染进程
 │   ├── renderer/      # React 组件
@@ -92,10 +92,10 @@ IamDog/
 
 ## 🔗 相关链接
 
-- **GitHub 仓库**: https://github.com/HayaKus/IamDog
-- **Releases**: https://github.com/HayaKus/IamDog/releases
-- **Homebrew Tap**: https://github.com/HayaKus/homebrew-iamdog
-- **问题反馈**: https://github.com/HayaKus/IamDog/issues
+- **GitHub 仓库**: https://github.com/HayaKus/LingxiDesktop
+- **Releases**: https://github.com/HayaKus/LingxiDesktop/releases
+- **Homebrew Tap**: https://github.com/HayaKus/homebrew-LingxiDesktop
+- **问题反馈**: https://github.com/HayaKus/LingxiDesktop/issues
 
 ## 📝 许可证
 

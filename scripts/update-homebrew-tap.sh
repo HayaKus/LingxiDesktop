@@ -28,7 +28,7 @@ VERSION=$1
 SHA256=${2:-":no_check"}
 
 # Tap 仓库路径（需要修改为实际路径）
-TAP_REPO="$HOME/Code/homebrew-iamdog"
+TAP_REPO="$HOME/Code/homebrew-LingxiDesktop"
 
 echo -e "${YELLOW}正在更新 Homebrew Tap 到版本 $VERSION...${NC}"
 echo ""
@@ -38,20 +38,20 @@ if [ ! -d "$TAP_REPO" ]; then
   echo -e "${RED}错误: Tap 仓库不存在: $TAP_REPO${NC}"
   echo ""
   echo "请先创建 Tap 仓库："
-  echo "  1. 在 GitHub 创建仓库: homebrew-iamdog"
-  echo "  2. 克隆到本地: git clone https://github.com/HayaKus/homebrew-iamdog.git $TAP_REPO"
+  echo "  1. 在 GitHub 创建仓库: homebrew-LingxiDesktop"
+  echo "  2. 克隆到本地: git clone https://github.com/HayaKus/homebrew-LingxiDesktop.git $TAP_REPO"
   echo "  3. 创建目录: mkdir -p $TAP_REPO/Casks"
-  echo "  4. 复制 Cask 文件: cp homebrew/iamdog.rb $TAP_REPO/Casks/"
+  echo "  4. 复制 Cask 文件: cp homebrew/lingxidesktop.rb $TAP_REPO/Casks/"
   echo ""
   exit 1
 fi
 
 # 检查 Cask 文件是否存在
-if [ ! -f "$TAP_REPO/Casks/iamdog.rb" ]; then
-  echo -e "${RED}错误: Cask 文件不存在: $TAP_REPO/Casks/iamdog.rb${NC}"
+if [ ! -f "$TAP_REPO/Casks/lingxidesktop.rb" ]; then
+  echo -e "${RED}错误: Cask 文件不存在: $TAP_REPO/Casks/lingxidesktop.rb${NC}"
   echo ""
   echo "请先复制 Cask 文件："
-  echo "  cp homebrew/iamdog.rb $TAP_REPO/Casks/"
+  echo "  cp homebrew/lingxidesktop.rb $TAP_REPO/Casks/"
   echo ""
   exit 1
 fi
@@ -73,24 +73,24 @@ echo "🔄 拉取最新代码..."
 git pull origin main || git pull origin master
 
 # 备份原文件
-cp Casks/iamdog.rb Casks/iamdog.rb.backup
+cp Casks/lingxidesktop.rb Casks/lingxidesktop.rb.backup
 
 # 更新 Cask 文件
 echo "✏️  更新 Cask 文件..."
 if [ "$SHA256" = ":no_check" ]; then
   # 只更新版本号
-  sed -i '' "s/version \".*\"/version \"$VERSION\"/" Casks/iamdog.rb
+  sed -i '' "s/version \".*\"/version \"$VERSION\"/" Casks/lingxidesktop.rb
 else
   # 更新版本号和 SHA256
-  sed -i '' "s/version \".*\"/version \"$VERSION\"/" Casks/iamdog.rb
-  sed -i '' "s/sha256 .*/sha256 \"$SHA256\"/" Casks/iamdog.rb
+  sed -i '' "s/version \".*\"/version \"$VERSION\"/" Casks/lingxidesktop.rb
+  sed -i '' "s/sha256 .*/sha256 \"$SHA256\"/" Casks/lingxidesktop.rb
 fi
 
 # 显示变更
 echo ""
 echo "📝 文件变更："
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-git diff Casks/iamdog.rb || true
+git diff Casks/lingxidesktop.rb || true
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -99,17 +99,17 @@ read -p "是否提交并推送这些更改？(y/n) " -n 1 -r
 echo ""
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
   echo -e "${YELLOW}已取消。恢复原文件...${NC}"
-  mv Casks/iamdog.rb.backup Casks/iamdog.rb
+  mv Casks/lingxidesktop.rb.backup Casks/lingxidesktop.rb
   exit 0
 fi
 
 # 删除备份
-rm Casks/iamdog.rb.backup
+rm Casks/lingxidesktop.rb.backup
 
 # 提交并推送
 echo ""
 echo "📤 提交并推送..."
-git add Casks/iamdog.rb
+git add Casks/lingxidesktop.rb
 git commit -m "Update to version $VERSION"
 git push origin main || git push origin master
 
@@ -121,12 +121,12 @@ echo ""
 echo "用户现在可以通过以下命令更新："
 echo ""
 echo -e "  ${GREEN}brew update${NC}"
-echo -e "  ${GREEN}brew upgrade --cask iamdog${NC}"
+echo -e "  ${GREEN}brew upgrade --cask lingxidesktop${NC}"
 echo ""
 echo "或首次安装："
 echo ""
-echo -e "  ${GREEN}brew tap HayaKus/iamdog${NC}"
-echo -e "  ${GREEN}brew install --cask iamdog${NC}"
+echo -e "  ${GREEN}brew tap HayaKus/homebrew-lingxidesktop${NC}"
+echo -e "  ${GREEN}brew install --cask lingxidesktop${NC}"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""

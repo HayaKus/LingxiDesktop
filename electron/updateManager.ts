@@ -28,7 +28,7 @@ export class UpdateManager {
 
   constructor(updateUrl?: string) {
     // 使用 GitHub Raw 地址获取版本信息
-    this.updateUrl = updateUrl || 'https://raw.githubusercontent.com/HayaKus/IamDog/master/version.json';
+    this.updateUrl = updateUrl || 'https://raw.githubusercontent.com/HayaKus/LingxiDesktop/master/version.json';
   }
 
   /**
