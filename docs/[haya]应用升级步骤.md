@@ -98,6 +98,8 @@ git push origin master
 #### 5. 测试安装
 
 ```bash
+brew tap HayaKus/iamdog
+
 # 更新 Homebrew
 brew update
 
