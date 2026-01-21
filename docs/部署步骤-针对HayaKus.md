@@ -99,7 +99,7 @@ npm run electron:build
 
 ```bash
 # 1. 更新版本号
-npm version 0.1.2
+npm version 0.1.5
 
 # 2. 构建
 npm run electron:build
@@ -110,7 +110,7 @@ npm run electron:build
 
 # 4. 提交
 git add package.json version.json
-git commit -m "发布 v0.1.2"
+git commit -m "发布 v0.1.5"
 git push github master
 
 # 5. 在 GitHub 创建新的 Release (v0.1.2)
