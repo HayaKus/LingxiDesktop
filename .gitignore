@@ -9,7 +9,11 @@ coverage/
 # Production
 dist/
 build/
-release/
+
+# Release files (exclude most, but keep specific DMG for distribution)
+release/*
+!release/.gitkeep
+!release/*.dmg
 
 # Misc
 .DS_Store
