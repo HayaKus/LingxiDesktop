@@ -27,8 +27,8 @@ export class UpdateManager {
   private updateUrl: string;
 
   constructor(updateUrl?: string) {
-    // 默认使用 GitHub Raw 地址,你可以替换为自己的服务器
-    this.updateUrl = updateUrl || 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/version.json';
+    // 使用 GitHub Raw 地址获取版本信息
+    this.updateUrl = updateUrl || 'https://raw.githubusercontent.com/HayaKus/IamDog/master/version.json';
   }
 
   /**
