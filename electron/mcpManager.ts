@@ -1,6 +1,6 @@
 import { createMCPClient, IMCPClient, MCPServerConfig } from './mcpClient';
 import { logger } from './logger';
-import { oauthManager } from './oauthManager';
+import { oauth21Manager } from './oauthManager';
 
 class MCPManager {
   private clients: Map<string, IMCPClient> = new Map();
@@ -9,35 +9,45 @@ class MCPManager {
   // 加载配置的MCP服务器
   async loadServers(configs: MCPServerConfig[]): Promise<void> {
     logger.info(`📡 Loading ${configs.length} MCP servers...`);
-    
+
     for (const config of configs) {
       if (config.enabled) {
         try {
-          await this.addServer(config);
+          await this.addServer(config, false, true); // skipSave=false, skipOAuth=true (启动时不自动OAuth)
         } catch (error) {
           logger.error(`Failed to load MCP server: ${config.name}`, error);
           // 继续加载其他服务器
         }
       }
     }
-    
+
+    // 加载完成后，统一保存一次
+    await this.saveConfigsToDisk();
+
     logger.info(`✅ Loaded ${this.clients.size} MCP servers`);
   }
   
   // 添加MCP服务器（支持OAuth授权）
-  async addServer(config: MCPServerConfig): Promise<void> {
+  async addServer(config: MCPServerConfig, skipSave: boolean = false, skipOAuth: boolean = false): Promise<void> {
     try {
-      // 保存配置
+      // 保存配置到内存
       this.configs.set(config.id, config);
       logger.info(`✅ MCP server config saved: ${config.name} (${config.type})`);
       
       // 如果enabled=true，尝试连接
       if (config.enabled) {
         try {
-          // 如果配置了OAuth但没有token，先进行授权
+          // 如果配置了OAuth但没有token
           if (config.oauth && !config.tokens) {
-            console.log(`🔐 [MCP] Server requires OAuth, starting authorization...`);
-            await this.authorizeServer(config);
+            if (skipOAuth) {
+              // 启动时跳过OAuth，只标记状态
+              console.log(`⏸️ [MCP] Server requires OAuth, but skipping auto-authorization on startup`);
+              return; // 不连接，等待用户手动触发
+            } else {
+              // 手动添加时自动触发OAuth
+              console.log(`🔐 [MCP] Server requires OAuth, starting authorization...`);
+              await this.authorizeServer(config);
+            }
           }
           
           // 如果有OAuth token，检查是否过期并刷新
@@ -62,9 +72,36 @@ class MCPManager {
           this.clients.set(config.id, client);
           logger.info(`✅ MCP server connected: ${config.name}`);
           
-          // 保存tokens到磁盘
-          await this.saveConfigsToDisk();
+          // 只在需要时保存到磁盘（避免loadServers时重复保存）
+          if (skipSave) {
+            await this.saveConfigsToDisk();
+          }
         } catch (error: any) {
+          // 检查是否需要OAuth授权
+          if (error.message === 'OAUTH_REQUIRED' && !skipOAuth) {
+            console.log(`🔐 [MCP] Server requires OAuth, starting authorization flow...`);
+            try {
+              await this.authorizeServer(config);
+              
+              // OAuth完成后，重新连接
+              console.log(`🔄 [MCP] Retrying connection with OAuth token...`);
+              const client = createMCPClient(config);
+              await client.connect();
+              
+              this.configs.set(config.id, config);
+              this.clients.set(config.id, client);
+              logger.info(`✅ MCP server connected with OAuth: ${config.name}`);
+              
+              if (skipSave) {
+                await this.saveConfigsToDisk();
+              }
+              return; // 成功连接，返回
+            } catch (oauthError: any) {
+              logger.error(`❌ OAuth authorization failed for ${config.name}:`, oauthError);
+              throw oauthError;
+            }
+          }
+          
           logger.warn(`⚠️ Could not connect to MCP server: ${config.name}`, error);
           // 不抛出错误，允许保存配置
         }
@@ -90,18 +127,69 @@ class MCPManager {
     }
   }
   
-  // 为服务器进行OAuth授权
+  /**
+   * 为服务器进行OAuth 2.1授权
+   * 使用MCP规范要求的发现流程
+   */
   async authorizeServer(config: MCPServerConfig): Promise<void> {
-    if (!config.oauth) {
-      throw new Error('No OAuth configuration found');
-    }
-    
-    console.log(`🔐 [MCP] Starting OAuth authorization for ${config.name}...`);
-    
+    console.log(`🔐 [MCP] Starting OAuth 2.1 authorization for ${config.name}...`);
+
     try {
-      const tokens = await oauthManager.authorize(config.oauth);
-      
-      // 保存token到配置
+      // Step 1: 发现授权服务器配置
+      console.log(`🔍 [MCP] Discovering authorization server...`);
+      const discovery = await oauth21Manager.discoverAuthorizationServer(config.url);
+
+      console.log(`✅ [MCP] Authorization server discovered`);
+      console.log(`   Resource URI: ${discovery.resourceUri}`);
+      console.log(`   Auth Endpoint: ${discovery.authServerMetadata.authorization_endpoint}`);
+      console.log(`   Token Endpoint: ${discovery.authServerMetadata.token_endpoint}`);
+
+      // Step 2: 获取或注册客户端凭据
+      let clientId = config.oauth?.clientId;
+      let clientSecret = config.oauth?.clientSecret;
+
+      // 如果没有配置客户端凭据,尝试动态注册
+      if (!clientId && discovery.authServerMetadata.registration_endpoint) {
+        console.log(`📝 [MCP] No client credentials configured, attempting dynamic registration...`);
+
+        const redirectUri = 'http://localhost:23333/oauth/callback';
+        const credentials = await oauth21Manager.registerClient(
+          discovery.authServerMetadata.registration_endpoint,
+          [redirectUri]
+        );
+
+        clientId = credentials.clientId;
+        clientSecret = credentials.clientSecret;
+
+        console.log(`✅ [MCP] Client registered successfully`);
+        console.log(`   Client ID: ${clientId}`);
+      } else if (!clientId) {
+        throw new Error('需要配置Client ID或授权服务器必须支持动态客户端注册(RFC 7591)');
+      }
+
+      // Step 3: 执行OAuth 2.1授权流程 (PKCE + Resource Indicators)
+      const scopes = config.oauth?.scopes || discovery.authServerMetadata.scopes_supported || ['openid'];
+      const redirectUri = config.oauth?.redirectUri || 'http://localhost:23333/oauth/callback';
+
+      const tokens = await oauth21Manager.authorize(
+        discovery.authServerMetadata,
+        { clientId, clientSecret },
+        discovery.resourceUri,
+        scopes,
+        redirectUri
+      );
+
+      // Step 4: 保存OAuth配置和token
+      config.oauth = {
+        authUrl: discovery.authServerMetadata.authorization_endpoint,
+        tokenUrl: discovery.authServerMetadata.token_endpoint,
+        clientId,
+        clientSecret,
+        scopes,
+        redirectUri,
+        resource: discovery.resourceUri  // RFC 8707 Resource Indicators
+      };
+
       config.tokens = {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
@@ -109,14 +197,18 @@ class MCPManager {
         expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined,
         token_type: tokens.token_type
       };
-      
+
+      // 保存OAuth会话信息用于刷新token
+      config.authServerMetadata = discovery.authServerMetadata;
+
       // 更新配置
       this.configs.set(config.id, config);
-      
-      console.log(`✅ [MCP] OAuth authorization successful for ${config.name}`);
-      logger.info(`✅ OAuth authorization successful for ${config.name}`);
+      await this.saveConfigsToDisk();
+
+      console.log(`✅ [MCP] OAuth 2.1 authorization successful for ${config.name}`);
+      logger.info(`✅ OAuth 2.1 authorization successful for ${config.name}`);
     } catch (error: any) {
-      console.error(`❌ [MCP] OAuth authorization failed:`, error);
+      console.error(`❌ [MCP] OAuth 2.1 authorization failed:`, error);
       throw new Error(`OAuth授权失败: ${error.message}`);
     }
   }
@@ -126,27 +218,33 @@ class MCPManager {
     if (!config.tokens || !config.oauth) {
       return;
     }
-    
+
     // 检查token是否过期（提前5分钟刷新）
     const now = Date.now();
     const expiresAt = config.tokens.expires_at || 0;
     const bufferTime = 5 * 60 * 1000; // 5分钟缓冲
-    
+
     if (expiresAt > 0 && now >= (expiresAt - bufferTime)) {
       console.log(`🔄 [MCP] Token expired or expiring soon, refreshing...`);
-      
+
       if (!config.tokens.refresh_token) {
         console.log(`⚠️ [MCP] No refresh token, need to re-authorize`);
         await this.authorizeServer(config);
         return;
       }
-      
+
       try {
-        const newTokens = await oauthManager.refreshToken(
+        // RFC 8707要求: token刷新时也必须包含resource参数
+        const newTokens = await oauth21Manager.refreshToken(
           config.tokens.refresh_token,
-          config.oauth
+          config.oauth.tokenUrl,
+          {
+            clientId: config.oauth.clientId,
+            clientSecret: config.oauth.clientSecret
+          },
+          config.oauth.resource!  // Resource URI必需
         );
-        
+
         // 更新token
         config.tokens = {
           access_token: newTokens.access_token,
@@ -155,10 +253,11 @@ class MCPManager {
           expires_at: newTokens.expires_in ? Date.now() + newTokens.expires_in * 1000 : undefined,
           token_type: newTokens.token_type
         };
-        
+
         // 更新配置
         this.configs.set(config.id, config);
-        
+        await this.saveConfigsToDisk();
+
         console.log(`✅ [MCP] Token refreshed successfully`);
         logger.info(`✅ Token refreshed for ${config.name}`);
       } catch (error: any) {
@@ -178,8 +277,13 @@ class MCPManager {
     if (client) {
       client.disconnect();
       this.clients.delete(serverId);
+    }
+    
+    if (config) {
       this.configs.delete(serverId);
-      logger.info(`🗑️ MCP server removed: ${config?.name || serverId}`);
+      logger.info(`🗑️ MCP server removed: ${config.name || serverId}`);
+    } else {
+      logger.warn(`⚠️ MCP server ${serverId} not found in configs`);
     }
   }
   
@@ -305,6 +409,25 @@ class MCPManager {
       logger.info(`✅ Connection test passed: ${config.name}`);
       return { success: true };
     } catch (error: any) {
+      // 如果是OAuth错误，尝试授权
+      if (error.message === 'OAUTH_REQUIRED') {
+        console.log(`🔐 [MCP] Test requires OAuth, starting authorization...`);
+        try {
+          await this.authorizeServer(config);
+          
+          // 授权后重新测试
+          const client = createMCPClient(config);
+          await client.connect();
+          client.disconnect();
+          
+          logger.info(`✅ Connection test passed with OAuth: ${config.name}`);
+          return { success: true };
+        } catch (oauthError: any) {
+          logger.error(`❌ OAuth authorization failed: ${config.name}`, oauthError);
+          return { success: false, error: `OAuth授权失败: ${oauthError.message}` };
+        }
+      }
+      
       logger.error(`❌ Connection test failed: ${config.name}`, error);
       return { success: false, error: error.message };
     }

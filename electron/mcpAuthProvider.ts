@@ -1,6 +1,16 @@
 // 不需要导入SDK类型，直接使用any类型定义即可
-import { oauthManager, OAuthConfig } from './oauthManager';
+import { oauth21Manager } from './oauthManager';
 import { logger } from './logger';
+
+// OAuth配置接口（本地定义）
+interface OAuthConfig {
+  authUrl: string;
+  tokenUrl: string;
+  clientId: string;
+  clientSecret?: string;
+  scopes: string[];
+  redirectUri: string;
+}
 
 // 类型定义（用any避免复杂的SDK导入）
 type OAuthClientProvider = any;
@@ -93,19 +103,9 @@ export class CustomAuthProvider implements OAuthClientProvider {
     console.log('🌐 [CustomAuthProvider] Authorization URL:', authorizationUrl.toString());
     
     try {
-      // 使用现有的oauthManager进行完整的OAuth流程
-      const tokens = await oauthManager.authorize(this.oauthConfig);
-      
-      // 保存tokens
-      this._tokens = {
-        access_token: tokens.access_token,
-        token_type: tokens.token_type,
-        refresh_token: tokens.refresh_token,
-        expires_in: tokens.expires_in
-      };
-      
-      logger.info('✅ [CustomAuthProvider] OAuth authorization completed');
-      console.log('✅ [CustomAuthProvider] Tokens obtained successfully');
+      // 注意：这个方法需要根据oauth21Manager的实际API进行调整
+      // 暂时抛出错误，因为oauth21Manager没有直接的authorize方法接受OAuthConfig
+      throw new Error('OAuth authorization not implemented for oauth21Manager');
     } catch (error) {
       logger.error('❌ [CustomAuthProvider] OAuth authorization failed', error);
       throw error;

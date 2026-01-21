@@ -1,6 +1,6 @@
 import { logger } from './logger';
 import { BrowserWindow } from 'electron';
-import { oauthManager } from './oauthManager';
+import { oauth21Manager } from './oauthManager';
 
 // 使用require导入eventsource以避免TypeScript类型问题
 const EventSource = require('eventsource');
@@ -211,8 +211,21 @@ class HTTPMCPClient implements IMCPClient {
       sendLogToRenderer('   Opening authorization window...');
       sendLogToRenderer('   ⚠️ Please login and authorize in the popup window');
       
-      // 使用oauthManager执行完整的OAuth流程
-      const tokens = await oauthManager.authorize({
+      // 使用oauth21Manager执行完整的OAuth流程
+      const tokens = await oauth21Manager.authorize(
+        { 
+          issuer: authServerUrl,
+          authorization_endpoint: asMetadata.authorization_endpoint,
+          token_endpoint: asMetadata.token_endpoint
+        },
+        { clientId, clientSecret },
+        this.config.url,
+        this.config.oauth?.scopes || [],
+        this.config.oauth?.redirectUri || 'lingxi://oauth/callback'
+      );
+      
+      /* 旧的调用方式 - 保留用于参考
+      const tokens = await oauth21Manager.authorize({
         authUrl: asMetadata.authorization_endpoint,
         tokenUrl: asMetadata.token_endpoint,
         clientId: clientId,
@@ -221,6 +234,7 @@ class HTTPMCPClient implements IMCPClient {
         redirectUri: this.config.oauth?.redirectUri || 'lingxi://oauth/callback',
         resource: this.config.url  // RFC 8707 - 传递resource参数
       });
+      */
       
       sendLogToRenderer(`   ✅ Access Token received!`);
       sendLogToRenderer(`   Token type: ${tokens.token_type}`);

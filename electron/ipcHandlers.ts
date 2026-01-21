@@ -461,6 +461,7 @@ export class IpcHandlers {
     ipcMain.handle('mcp:add-server', async (event, config: MCPServerConfig) => {
       try {
         log.info(`📡 Adding MCP server: ${config.name} (${config.type})`);
+        
         await mcpManager.addServer(config);
         
         // 保存到配置

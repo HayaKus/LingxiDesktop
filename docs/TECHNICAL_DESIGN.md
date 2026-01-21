@@ -2,10 +2,10 @@
 
 > 桌面AI助手的详细技术实现方案
 
-**文档版本**：v4.0
-**最后更新**：2026-01-19
+**文档版本**：v5.0
+**最后更新**：2026-01-21
 **负责人**：哈雅（263321）
-**状态**：✅ 生产就绪(含多会话管理、BUC认证、命令执行等完整功能)
+**状态**：✅ 生产就绪(含MCP协议、多会话管理、BUC认证、命令执行等完整功能)
 
 ---
 
@@ -22,9 +22,9 @@
 │  │  宠物窗口层  │  │  对话窗口层  │  │  配置管理层  │  │认证管理 ││
 │  │             │  │             │  │             │  │         ││
 │  │ • 小狗图标   │  │ • 输入框     │  │ • API密钥    │  │ • BUC   ││
-│  │ • 点击/长按  │  │ • 消息展示   │  │ • 快捷键     │  │ • 用户  ││
-│  │ • 拖拽移动   │  │ • Markdown   │  │ • 持久化     │  │   信息  ││
-│  │ • 右下角定位 │  │ • 智能定位   │  │ • 位置记忆   │  │         ││
+│  │ • 点击/长按  │  │ • 消息展示   │  │ • 快捷键     │  │ • OAuth ││
+│  │ • 拖拽移动   │  │ • Markdown   │  │ • 持久化     │  │ • 用户  ││
+│  │ • 右下角定位 │  │ • 智能定位   │  │ • 位置记忆   │  │   信息  ││
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────┘│
 │                                                                   │
 ├─────────────────────────────────────────────────────────────────┤
@@ -40,13 +40,13 @@
 │  │ • 内存存储   │  │ • 粘贴板监听 │  │ • Token优化  │  │   保存  ││
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────┘│
 │                                                                   │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
-│  │ 命令执行模块 │  │ 上下文管理   │  │  安全模块    │            │
-│  │             │  │             │  │             │            │
-│  │ • AI触发    │  │ • Token计算  │  │ • 命令审核   │            │
-│  │ • 安全验证   │  │ • 智能裁剪   │  │ • 权限控制   │            │
-│  │ • 结果返回   │  │ • 图片优先   │  │ • 日志记录   │            │
-│  └─────────────┘  └─────────────┘  └─────────────┘            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐│
+│  │ 命令执行模块 │  │ 上下文管理   │  │  安全模块    │  │MCP协议  ││
+│  │             │  │             │  │             │  │         ││
+│  │ • AI触发    │  │ • Token计算  │  │ • 命令审核   │  │ • SDK   ││
+│  │ • 安全验证   │  │ • 智能裁剪   │  │ • 权限控制   │  │ • OAuth ││
+│  │ • 结果返回   │  │ • 图片优先   │  │ • 日志记录   │  │ • 工具  ││
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────┘│
 │                                                                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                         系统接口层                                │
@@ -579,9 +579,200 @@ const result = await commandExecutor.execute(command, args);
 
 ---
 
-### 8. BUC认证模块
+### 8. MCP协议模块 ⭐ NEW
 
-#### 8.1 认证流程
+#### 8.1 MCP SDK集成
+
+**核心组件**：
+```typescript
+// 官方SDK集成
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+```
+
+#### 8.2 支持的MCP服务器类型
+
+**HTTP传输**：
+- 标准HTTP/HTTPS连接
+- 支持流式响应(SSE)
+- 自定义headers和超时设置
+
+**OAuth 2.1认证**：
+- 完整的PKCE授权码流程
+- Resource Indicators (RFC 8707)
+- 自动token刷新机制
+- 授权服务器自动发现
+
+#### 8.3 MCP配置结构
+
+```typescript
+interface MCPServerConfig {
+  id: string;
+  name: string;
+  url: string;
+  type: 'http' | 'sse';
+  enabled: boolean;
+  headers?: Record<string, string>;
+
+  // OAuth 2.1配置
+  oauth?: {
+    authUrl: string;      // 授权端点
+    tokenUrl: string;     // Token端点
+    clientId: string;     // 客户端ID
+    clientSecret?: string;
+    scopes: string[];
+    redirectUri: string;
+    resource?: string;    // RFC 8707 Resource参数
+  };
+
+  // OAuth tokens（自动管理）
+  tokens?: {
+    access_token: string;
+    refresh_token?: string;
+    expires_at?: number;
+    token_type: string;
+  };
+}
+```
+
+#### 8.4 MCP管理器
+
+**文件**: `electron/mcpManager.ts`
+
+**核心功能**：
+```typescript
+class MCPManager {
+  // 加载配置的服务器
+  async loadServers(configs: MCPServerConfig[]): Promise<void>
+
+  // 添加MCP服务器
+  async addServer(config: MCPServerConfig): Promise<void>
+
+  // OAuth授权流程
+  async authorizeServer(config: MCPServerConfig): Promise<void>
+
+  // 确保token有效
+  async ensureValidToken(config: MCPServerConfig): Promise<void>
+
+  // 获取所有可用工具
+  async getAllTools(): Promise<Tool[]>
+
+  // 调用MCP工具
+  async callTool(serverId: string, toolName: string, args: any): Promise<any>
+}
+```
+
+#### 8.5 OAuth 2.1认证流程
+
+**完整实现** (参见 docs/MCP_AUTH_FIX_SUMMARY.md):
+
+```typescript
+// 1. 授权服务器发现
+const discovery = await discoverAuthorizationServer(mcpServerUrl);
+
+// 2. 动态客户端注册（可选）
+if (authServerMetadata.registration_endpoint) {
+  const client = await registerClient(registration_endpoint);
+}
+
+// 3. PKCE授权码流程
+const { code_verifier, code_challenge } = generatePKCE();
+const authUrl = buildAuthUrl({
+  code_challenge,
+  resource: mcpServerUrl,
+  state: randomState
+});
+
+// 4. Token交换
+const tokens = await exchangeToken({
+  code,
+  code_verifier,
+  resource: mcpServerUrl
+});
+
+// 5. Token使用
+headers['Authorization'] = `Bearer ${tokens.access_token}`;
+```
+
+**关键安全特性**：
+- ✅ PKCE S256（防止授权码拦截）
+- ✅ State参数（防止CSRF）
+- ✅ Resource参数（token与服务器绑定）
+- ✅ 自动token刷新
+- ✅ 本地加密存储
+
+#### 8.6 工具调用流程
+
+```typescript
+// 1. AI请求调用工具
+tool_calls: [{
+  id: "call_xxx",
+  function: {
+    name: "mcp__server-id__tool-name",
+    arguments: '{"arg1":"value1"}'
+  }
+}]
+
+// 2. 解析工具调用
+const [prefix, serverId, ...toolNameParts] = name.split('__');
+const toolName = toolNameParts.join('__');
+
+// 3. 调用MCP服务器
+const result = await mcpManager.callTool(serverId, toolName, args);
+
+// 4. 返回结果给AI
+{
+  role: "tool",
+  tool_call_id: "call_xxx",
+  content: JSON.stringify(result)
+}
+```
+
+#### 8.7 MCP UI界面
+
+**配置管理窗口** (`src/renderer/components/McpConfig.tsx`):
+- MCP服务器列表
+- 添加/编辑/删除服务器
+- OAuth授权按钮
+- 连接状态显示
+- 工具列表预览
+
+**对话界面集成**:
+- MCP工具自动集成到AI工具列表
+- 工具名称前缀：`mcp__server-id__tool-name`
+- 实时工具调用日志
+- 结果自动传回AI
+
+#### 8.8 MCP工具分类
+
+**本地工具** (6个):
+- `local_execute_command` - 执行系统命令
+- `local_read_clipboard` - 读取剪贴板
+- `local_take_screenshot` - 截取屏幕
+- `local_search_web` - 网络搜索
+- `local_get_current_time` - 获取时间
+- `local_calculate` - 数学计算
+
+**MCP工具** (48个，来自多个服务器):
+- 前缀格式：`mcp__服务器ID__工具名称`
+- 示例：`mcp__formal-skyline__exSwitchList`
+- 自动从配置的MCP服务器加载
+
+#### 8.9 错误处理
+
+| 场景 | 处理策略 |
+|------|---------|
+| OAuth未配置 | 提示用户配置OAuth |
+| Token过期 | 自动刷新token |
+| 刷新失败 | 触发重新授权 |
+| 服务器离线 | 标记状态，跳过连接 |
+| 工具调用失败 | 返回错误信息给AI |
+
+---
+
+### 9. BUC认证模块
+
+#### 9.1 认证流程
 ```typescript
 // bucAuth.ts
 export async function login(): Promise<{
@@ -611,7 +802,7 @@ export async function login(): Promise<{
 }
 ```
 
-#### 8.2 用户信息管理
+#### 9.2 用户信息管理
 ```typescript
 interface UserInfo {
   staffId: string;        // 工号
@@ -626,9 +817,9 @@ await configManager.set('userInfo', userInfo);
 
 ---
 
-### 9. 配置管理模块
+### 10. 配置管理模块
 
-#### 9.1 配置项
+#### 10.1 配置项
 ```typescript
 interface AppConfig {
   apiKey: string;                    // IdeaLab API密钥
@@ -637,10 +828,11 @@ interface AppConfig {
   petPosition?: { x: number; y: number }; // 宠物位置
   userInfo?: UserInfo;               // 用户信息
   lastSessionId?: string;            // 最后使用的会话ID
+  mcpServers?: MCPServerConfig[];    // MCP服务器配置列表
 }
 ```
 
-#### 9.2 存储方式
+#### 10.2 存储方式
 - 使用 `electron-store`
 - 本地 JSON 文件
 - 位置：`~/Library/Application Support/lingxi/config.json`
@@ -769,6 +961,15 @@ interface AppConfig {
 - **模型**：qwen-vl-max-latest
 - **多模态**：文本 + 图片
 - **上下文窗口**：131K tokens
+
+### MCP协议支持
+
+#### MCP SDK 1.25.2
+- **官方SDK**：@modelcontextprotocol/sdk
+- **传输协议**：HTTP/HTTPS + SSE
+- **认证支持**：OAuth 2.1 PKCE
+- **工具调用**：标准MCP协议
+- **流式响应**：StreamableHTTPClientTransport
 
 ### 数据存储
 
@@ -1008,6 +1209,18 @@ src/renderer/             # 渲染进程代码
 - [x] 命令安全验证
 - [x] 工具函数调用(Function Calling)
 
+### ✅ MCP协议支持 ⭐ NEW
+- [x] MCP SDK集成(官方@modelcontextprotocol/sdk)
+- [x] HTTP/SSE传输协议
+- [x] OAuth 2.1 PKCE认证
+- [x] 授权服务器自动发现
+- [x] 动态客户端注册
+- [x] Token自动刷新
+- [x] Resource Indicators (RFC 8707)
+- [x] MCP服务器配置管理
+- [x] MCP工具调用集成
+- [x] 54个工具可用(6本地+48 MCP)
+
 ### ✅ 用户体验
 - [x] 一键启动脚本
 - [x] 调试日志
@@ -1055,7 +1268,7 @@ src/renderer/             # 渲染进程代码
 
 ---
 
-**文档版本**：v4.0
-**最后更新**：2026-01-19
+**文档版本**：v5.0
+**最后更新**：2026-01-21
 **负责人**：哈雅（263321）
-**状态**：✅ 生产就绪
+**状态**：✅ 生产就绪(含MCP协议支持)

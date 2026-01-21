@@ -34,7 +34,7 @@ export interface MCPServerConfig {
   headers?: Record<string, string>;
   timeout?: number;
   sessionId?: string; // SDK会话ID
-  
+
   // OAuth 2.1配置
   oauth?: {
     authUrl: string;      // 授权端点
@@ -43,8 +43,9 @@ export interface MCPServerConfig {
     clientSecret?: string; // 客户端密钥
     scopes: string[];     // 权限范围
     redirectUri: string;  // 重定向URI
+    resource?: string;    // RFC 8707 Resource参数 (MCP服务器的规范URI)
   };
-  
+
   // OAuth tokens（授权后自动填充）
   tokens?: {
     access_token: string;
@@ -52,6 +53,15 @@ export interface MCPServerConfig {
     expires_in?: number;
     expires_at?: number; // 过期时间戳
     token_type: string;
+  };
+
+  // 授权服务器元数据（用于token刷新等操作）
+  authServerMetadata?: {
+    issuer: string;
+    authorization_endpoint: string;
+    token_endpoint: string;
+    registration_endpoint?: string;
+    [key: string]: any;
   };
 }
 

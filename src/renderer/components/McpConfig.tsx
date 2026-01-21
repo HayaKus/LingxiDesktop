@@ -33,8 +33,6 @@ export function McpConfig({ onClose }: McpConfigProps) {
   const [editing, setEditing] = useState<McpServer | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
   const [headersText, setHeadersText] = useState('');
-  const [showOAuthConfig, setShowOAuthConfig] = useState(false);
-  const [oauthScopes, setOauthScopes] = useState('');
 
   useEffect(() => {
     loadServers();
@@ -88,18 +86,6 @@ export function McpConfig({ onClose }: McpConfigProps) {
       setHeadersText(text);
     } else {
       setHeadersText('');
-    }
-    
-    // 初始化OAuth scopes
-    if (server.oauth?.scopes) {
-      setOauthScopes(server.oauth.scopes.join(' '));
-    } else {
-      setOauthScopes('');
-    }
-    
-    // 如果有OAuth配置，展开OAuth区域
-    if (server.oauth) {
-      setShowOAuthConfig(true);
     }
   };
   
@@ -171,151 +157,38 @@ export function McpConfig({ onClose }: McpConfigProps) {
                   onChange={(e) => setEditing({ ...editing, url: e.target.value })}
                   className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
                 />
-                <select
-                  value={editing.type}
-                  onChange={(e) => setEditing({ ...editing, type: e.target.value as 'http' | 'sse' })}
-                  className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="http">HTTP</option>
-                  <option value="sse">SSE (Server-Sent Events)</option>
-                </select>
+                <input
+                  type="text"
+                  value="HTTP"
+                  disabled
+                  className="w-full px-3 py-2 border rounded bg-gray-100 text-gray-600"
+                />
                 
-                {/* OAuth 2.1 配置 */}
-                <div className="border rounded-lg p-3 bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setShowOAuthConfig(!showOAuthConfig)}
-                    className="w-full flex items-center justify-between text-left"
-                  >
-                    <span className="text-sm font-medium text-gray-700">
-                      🔐 OAuth 2.1 配置（动态授权）
-                    </span>
-                    <span className="text-gray-400">{showOAuthConfig ? '▼' : '▶'}</span>
-                  </button>
-                  
-                  {showOAuthConfig && (
-                    <div className="mt-3 space-y-3 pt-3 border-t">
-                      <input
-                        type="text"
-                        placeholder="授权端点 URL"
-                        value={editing.oauth?.authUrl || ''}
-                        onChange={(e) => setEditing({
-                          ...editing,
-                          oauth: {
-                            authUrl: e.target.value,
-                            tokenUrl: editing.oauth?.tokenUrl || '',
-                            clientId: editing.oauth?.clientId || '',
-                            clientSecret: editing.oauth?.clientSecret,
-                            scopes: editing.oauth?.scopes || [],
-                            redirectUri: editing.oauth?.redirectUri || ''
-                          }
-                        })}
-                        className="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Token 端点 URL"
-                        value={editing.oauth?.tokenUrl || ''}
-                        onChange={(e) => setEditing({
-                          ...editing,
-                          oauth: {
-                            authUrl: editing.oauth?.authUrl || '',
-                            tokenUrl: e.target.value,
-                            clientId: editing.oauth?.clientId || '',
-                            clientSecret: editing.oauth?.clientSecret,
-                            scopes: editing.oauth?.scopes || [],
-                            redirectUri: editing.oauth?.redirectUri || ''
-                          }
-                        })}
-                        className="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Client ID"
-                        value={editing.oauth?.clientId || ''}
-                        onChange={(e) => setEditing({
-                          ...editing,
-                          oauth: {
-                            authUrl: editing.oauth?.authUrl || '',
-                            tokenUrl: editing.oauth?.tokenUrl || '',
-                            clientId: e.target.value,
-                            clientSecret: editing.oauth?.clientSecret,
-                            scopes: editing.oauth?.scopes || [],
-                            redirectUri: editing.oauth?.redirectUri || ''
-                          }
-                        })}
-                        className="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="password"
-                        placeholder="Client Secret（可选，公开客户端无需填写）"
-                        value={editing.oauth?.clientSecret || ''}
-                        onChange={(e) => setEditing({
-                          ...editing,
-                          oauth: {
-                            authUrl: editing.oauth?.authUrl || '',
-                            tokenUrl: editing.oauth?.tokenUrl || '',
-                            clientId: editing.oauth?.clientId || '',
-                            clientSecret: e.target.value || undefined,
-                            scopes: editing.oauth?.scopes || [],
-                            redirectUri: editing.oauth?.redirectUri || ''
-                          }
-                        })}
-                        className="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Scopes（用空格分隔，例如：read write）"
-                        value={oauthScopes}
-                        onChange={(e) => {
-                          setOauthScopes(e.target.value);
-                          setEditing({
-                            ...editing,
-                            oauth: {
-                              authUrl: editing.oauth?.authUrl || '',
-                              tokenUrl: editing.oauth?.tokenUrl || '',
-                              clientId: editing.oauth?.clientId || '',
-                              clientSecret: editing.oauth?.clientSecret,
-                              scopes: e.target.value.split(/\s+/).filter(s => s),
-                              redirectUri: editing.oauth?.redirectUri || ''
-                            }
-                          });
-                        }}
-                        className="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Redirect URI（例如：myapp://oauth/callback）"
-                        value={editing.oauth?.redirectUri || ''}
-                        onChange={(e) => setEditing({
-                          ...editing,
-                          oauth: {
-                            authUrl: editing.oauth?.authUrl || '',
-                            tokenUrl: editing.oauth?.tokenUrl || '',
-                            clientId: editing.oauth?.clientId || '',
-                            clientSecret: editing.oauth?.clientSecret,
-                            scopes: editing.oauth?.scopes || [],
-                            redirectUri: e.target.value
-                          }
-                        })}
-                        className="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                      <p className="text-xs text-gray-500">
-                        💡 配置OAuth后，首次连接时会自动弹出授权窗口
-                      </p>
-                      {editing.tokens && (
-                        <div className="bg-green-50 border border-green-200 rounded p-2">
-                          <p className="text-xs text-green-700">
-                            ✅ 已授权 - Token有效期至：
-                            {editing.tokens.expires_at 
-                              ? new Date(editing.tokens.expires_at).toLocaleString('zh-CN')
-                              : '未知'}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {/* OAuth状态提示（只读） */}
+                {editing.tokens && (
+                  <div className="bg-green-50 border border-green-200 rounded p-3">
+                    <p className="text-sm text-green-700 font-medium">
+                      ✅ OAuth 已授权
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      Token有效期至：
+                      {editing.tokens.expires_at 
+                        ? new Date(editing.tokens.expires_at).toLocaleString('zh-CN')
+                        : '未知'}
+                    </p>
+                  </div>
+                )}
+                
+                {!editing.tokens && editing.oauth && (
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                    <p className="text-sm text-blue-700">
+                      🔐 需要OAuth授权
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      保存后首次连接时会自动弹出授权窗口
+                    </p>
+                  </div>
+                )}
                 
                 <div className="flex gap-2">
                   <button
