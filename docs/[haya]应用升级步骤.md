@@ -91,7 +91,7 @@ end
 
 ```bash
 git add Casks/iamdog.rb
-git commit -m "Update to version 0.1.6"
+git commit -m "Update to version 0.1.7"
 git push origin master
 ```
 
@@ -106,4 +106,14 @@ brew reinstall --cask iamdog
 
 # 验证版本
 brew info --cask iamdog
+```
+
+### 更新到最新版本
+
+```bash
+# 更新 Homebrew 和 Tap 仓库
+brew update
+
+# 升级 IamDog 到最新版本
+brew upgrade --cask iamdog
 ```
