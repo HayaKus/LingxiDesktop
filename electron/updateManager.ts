@@ -43,7 +43,15 @@ export class UpdateManager {
    * 获取当前应用版本
    */
   getCurrentVersion(): string {
-    return app.getVersion();
+    // 在开发模式下,app.getVersion() 返回的是 Electron 版本
+    // 需要从 package.json 读取应用版本
+    try {
+      const packageJson = require('../../package.json');
+      return packageJson.version || app.getVersion();
+    } catch (error) {
+      // 如果无法读取 package.json,使用 app.getVersion()
+      return app.getVersion();
+    }
   }
 
   /**
