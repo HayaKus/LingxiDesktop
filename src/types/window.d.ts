@@ -81,5 +81,24 @@ interface Window {
     mcpGetTools: (serverId: string) => Promise<any[]>;
     mcpGetAllTools: () => Promise<any[]>;
     mcpCallTool: (toolName: string, args: any) => Promise<any>;
+    
+    // 更新检测
+    updateCheck: () => Promise<UpdateCheckResult>;
+    updateGetVersion: () => Promise<string>;
+    updateSetUrl: (url: string) => Promise<boolean>;
   }
+}
+
+interface UpdateCheckResult {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion?: string;
+  versionInfo?: {
+    version: string;
+    releaseDate: string;
+    downloadUrl: string;
+    changeLog: string[];
+    minVersion?: string;
+  };
+  error?: string;
 }

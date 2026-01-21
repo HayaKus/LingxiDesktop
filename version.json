@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "releaseDate": "2026-01-21",
+  "downloadUrl": "https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/v0.2.0/lingxi-0.2.0.dmg",
+  "changeLog": [
+    "新增: 应用内检测更新功能",
+    "新增: 支持自定义更新服务器地址",
+    "优化: 改进版本号比较算法",
+    "修复: 若干已知问题"
+  ],
+  "minVersion": "0.1.0"
+}

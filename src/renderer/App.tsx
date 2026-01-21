@@ -4,8 +4,8 @@ import { InputArea } from './components/InputArea';
 import { SessionHistory } from './components/SessionHistory';
 import { CommandTest } from './components/CommandTest';
 import { McpConfig } from './components/McpConfig';
+import { CheckForUpdates } from './components/CheckForUpdates';
 import { useChatStore } from './store/chatStore';
-import { aiService } from './utils/aiService';
 
 interface UserInfo {
   workid: string;
@@ -17,9 +17,6 @@ interface UserInfo {
 }
 
 function App() {
-  // 默认 API KEY
-  const DEFAULT_API_KEY = '068b1d567193bf0441113306afbc5c77';
-  
   const [apiKey, setApiKey] = useState('');
   const [showConfig, setShowConfig] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
@@ -173,11 +170,10 @@ function App() {
   const loadConfig = async () => {
     try {
       const config = await window.electronAPI.getConfig();
+      // 只有当用户配置了 API Key 时才设置（不显示默认 API Key）
       if (config?.apiKey) {
         setApiKey(config.apiKey);
-        aiService.initialize(config.apiKey);
-      } else {
-        setShowConfig(true);
+        // 前端不需要初始化 aiService，因为实际使用的是后端的 sessionManager
       }
       // 加载知识
       if (config?.knowledge) {
@@ -207,22 +203,18 @@ function App() {
   };
 
   const saveConfig = async () => {
-    // 默认 API KEY
-    const DEFAULT_API_KEY = '068b1d567193bf0441113306afbc5c77';
-    
-    // 如果不填则使用默认值
-    const finalApiKey = tempApiKey.trim() || DEFAULT_API_KEY;
-
     try {
+      // 保存用户输入的 API Key（可以为空，空表示使用默认）
+      const finalApiKey = tempApiKey.trim();
       await window.electronAPI.saveConfig({ 
         apiKey: finalApiKey,
         knowledge: tempKnowledge,
         shortcut: tempShortcut
       });
+      // 只保存用户输入的 API Key 到状态（不保存默认 API Key）
       setApiKey(finalApiKey);
       setKnowledge(tempKnowledge);
       setShortcut(tempShortcut);
-      aiService.initialize(finalApiKey);
       useChatStore.getState().setKnowledge(tempKnowledge);
       setShowConfig(false);
       // 创建新会话（会自动清空）
@@ -301,11 +293,11 @@ function App() {
               type="password"
               value={tempApiKey}
               onChange={(e) => setTempApiKey(e.target.value)}
-              placeholder="不填则默认使用比赛专用AK，有效期至2026年2月14日"
+              placeholder="不填则使用服务端默认 API Key"
               className="input-field"
             />
             <p className="text-xs text-gray-500 mt-2">
-              不填则默认使用比赛专用AK，有效期至2026年2月14日
+              不填则使用服务端默认 API Key（需要登录）
             </p>
           </div>
 
@@ -395,6 +387,11 @@ function App() {
             </p>
           </div>
 
+          {/* 检测更新 */}
+          <div className="mb-6">
+            <CheckForUpdates />
+          </div>
+
           {/* 命令测试 */}
           <div className="mb-6">
             <button
@@ -423,8 +420,7 @@ function App() {
             {apiKey && (
               <button
                 onClick={() => {
-                  // 只有当 API KEY 不是默认值时才显示在输入框中
-                  setTempApiKey(apiKey === DEFAULT_API_KEY ? '' : apiKey);
+                  setTempApiKey(apiKey);
                   setTempKnowledge(knowledge);
                   setShowConfig(false);
                 }}
@@ -462,8 +458,7 @@ function App() {
           
           <button
             onClick={() => {
-              // 只有当 API KEY 不是默认值时才显示在输入框中
-              setTempApiKey(apiKey === DEFAULT_API_KEY ? '' : apiKey);
+              setTempApiKey(apiKey);
               setTempKnowledge(knowledge);
               setTempShortcut(shortcut);
               setShowConfig(true);
@@ -518,7 +513,7 @@ function App() {
               </p>
               <button
                 onClick={() => {
-                  setTempApiKey(apiKey === DEFAULT_API_KEY ? '' : apiKey);
+                  setTempApiKey(apiKey);
                   setTempKnowledge(knowledge);
                   setShowConfig(true);
                 }}

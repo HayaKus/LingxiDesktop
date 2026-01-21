@@ -91,10 +91,10 @@ app.whenReady().then(async () => {
     await configManager.initializeBucAuth();
     
     // 2. 初始化会话管理器
-    const apiKey = configManager.getApiKey();
-    if (apiKey) {
-      sessionManager.initialize(apiKey);
-      log.info('✅ SessionManager initialized');
+    try {
+      const apiKey = await configManager.getApiKey();
+      await sessionManager.initialize(apiKey);
+      log.info('✅ SessionManager initialized with API Key');
       
       // 加载历史会话
       try {
@@ -104,8 +104,9 @@ app.whenReady().then(async () => {
       } catch (error) {
         log.error('❌ Failed to load sessions:', error);
       }
-    } else {
-      log.warn('⚠️ API Key not configured, SessionManager not initialized');
+    } catch (error) {
+      log.error('❌ Failed to initialize SessionManager:', error);
+      log.warn('⚠️ SessionManager not initialized, please configure API Key in settings');
     }
     
     // 3. 加载MCP服务器

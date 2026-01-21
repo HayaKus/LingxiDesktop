@@ -199,6 +199,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcpCallTool: async (toolName: string, args: any): Promise<any> => {
     return await ipcRenderer.invoke('mcp:call-tool', toolName, args);
   },
+
+  // ============ 更新检测 API ============
+  
+  // 检测更新
+  updateCheck: async (): Promise<any> => {
+    return await ipcRenderer.invoke('update:check');
+  },
+  
+  // 获取当前版本
+  updateGetVersion: async (): Promise<string> => {
+    return await ipcRenderer.invoke('update:get-version');
+  },
+  
+  // 设置更新服务器地址
+  updateSetUrl: async (url: string): Promise<boolean> => {
+    return await ipcRenderer.invoke('update:set-url', url);
+  },
 });
 
 // 用户信息接口

@@ -13,6 +13,7 @@ import { sessionManager } from './sessionManager';
 import { commandExecutor } from './commandExecutor';
 import { CommandSecurity } from './commandSecurity';
 import { mcpManager } from './mcpManager';
+import { updateManager } from './updateManager';
 import { reregisterShortcut } from './main';
 import type { CommandOptions } from './commandExecutor';
 import type { MCPServerConfig } from './mcpClient';
@@ -38,6 +39,7 @@ export class IpcHandlers {
     this.registerSessionHandlers();
     this.registerCommandHandlers();
     this.registerMCPHandlers();
+    this.registerUpdateHandlers();
     this.registerLogHandlers();
   }
 
@@ -199,11 +201,10 @@ export class IpcHandlers {
       try {
         this.configManager.saveConfig(config);
         
-        // 重新初始化 SessionManager（使用新的 API KEY）
-        if (config.apiKey) {
-          sessionManager.initialize(config.apiKey, config.knowledge);
-          log.info('✅ SessionManager re-initialized with new API KEY');
-        }
+        // 重新初始化 SessionManager（获取 API KEY）
+        const apiKey = await this.configManager.getApiKey();
+        await sessionManager.initialize(apiKey, config.knowledge);
+        log.info('✅ SessionManager re-initialized with API KEY');
         
         // 重新注册快捷键（如果快捷键有变化）
         if (config.shortcut) {
@@ -569,6 +570,48 @@ export class IpcHandlers {
     } catch (error) {
       log.error('❌ Failed to save MCP servers:', error);
     }
+  }
+
+  /**
+   * 更新检测相关处理
+   */
+  private registerUpdateHandlers(): void {
+    // 检测更新
+    ipcMain.handle('update:check', async () => {
+      try {
+        log.info('🔍 Checking for updates...');
+        const result = await updateManager.checkForUpdates();
+        log.info(`✅ Update check completed:`, result);
+        return result;
+      } catch (error) {
+        log.error('❌ Update check failed:', error);
+        throw error;
+      }
+    });
+
+    // 获取当前版本
+    ipcMain.handle('update:get-version', async () => {
+      try {
+        const version = updateManager.getCurrentVersion();
+        log.info(`📦 Current version: ${version}`);
+        return version;
+      } catch (error) {
+        log.error('❌ Get version failed:', error);
+        throw error;
+      }
+    });
+
+    // 设置更新服务器地址
+    ipcMain.handle('update:set-url', async (event, url: string) => {
+      try {
+        updateManager.setUpdateUrl(url);
+        log.info(`✅ Update URL set to: ${url}`);
+        return true;
+      } catch (error) {
+        log.error('❌ Set update URL failed:', error);
+        throw error;
+      }
+    });
   }
 
   /**

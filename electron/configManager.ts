@@ -5,6 +5,7 @@
 import Store from 'electron-store';
 import log from 'electron-log';
 import { BucAuthService, BucUserInfo, UserSession } from './bucAuth';
+import axios from 'axios';
 
 interface StoreSchema {
   apiKey: string;
@@ -145,8 +146,82 @@ export class ConfigManager {
 
   /**
    * 获取 API Key
+   * 如果用户配置了自定义 API Key，则使用用户配置的
+   * 否则从服务端获取默认 API Key
    */
-  getApiKey(): string {
-    return this.store.get('apiKey') || '';
+  async getApiKey(): Promise<string> {
+    const userApiKey = this.store.get('apiKey');
+    
+    // 如果用户配置了 API Key，直接返回
+    if (userApiKey && userApiKey.trim()) {
+      log.info('✅ 使用用户配置的 API Key');
+      return userApiKey;
+    }
+    
+    // 否则从服务端获取默认 API Key
+    log.info('📡 用户未配置 API Key，从服务端获取默认 API Key...');
+    try {
+      const defaultApiKey = await this.fetchDefaultApiKey();
+      log.info('✅ 成功从服务端获取默认 API Key');
+      return defaultApiKey;
+    } catch (error) {
+      log.error('❌ 从服务端获取默认 API Key 失败:', error);
+      throw new Error('无法获取 API Key，请配置自定义 API Key 或检查网络连接');
+    }
+  }
+
+  /**
+   * 从服务端获取默认 API Key
+   */
+  private async fetchDefaultApiKey(): Promise<string> {
+    const userInfo = this.getUserInfo();
+    
+    if (!userInfo) {
+      throw new Error('未登录，无法获取默认 API Key');
+    }
+    
+    const url = 'https://tppwork.taobao.com/center/recommend';
+    const params = {
+      action: 'api_key',
+      appid: '55973',
+      staffName: userInfo.name,
+      staffId: userInfo.workid,
+      _input_charset: 'utf-8',
+      _output_charset: 'utf-8',
+    };
+    
+    log.info('📡 请求服务端 API Key:', { url, params: { ...params, staffName: '***', staffId: '***' } });
+    
+    try {
+      const response = await axios.get(url, { 
+        params,
+        timeout: 10000, // 10秒超时
+      });
+      
+      log.info('📡 服务端响应:', { status: response.status, data: response.data });
+      
+      // 检查响应格式：{ result: [{ apikey: "..." }] }
+      if (response.data && response.data.result && Array.isArray(response.data.result) && response.data.result.length > 0) {
+        const apiKey = response.data.result[0].apikey;
+        if (apiKey) {
+          log.info('✅ 成功获取 API Key');
+          return apiKey;
+        }
+      }
+      
+      log.error('❌ 服务端响应格式错误:', response.data);
+      throw new Error('服务端响应格式错误');
+    } catch (error: any) {
+      if (axios.isAxiosError(error)) {
+        log.error('❌ 请求失败:', {
+          message: error.message,
+          code: error.code,
+          response: error.response?.data,
+        });
+      } else {
+        log.error('❌ 未知错误:', error);
+      }
+      throw error;
+    }
   }
 }

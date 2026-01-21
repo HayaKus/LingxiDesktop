@@ -62,7 +62,7 @@ class SessionManager {
     'qwen-vl-plus-inc'
   ];
 
-  initialize(apiKey: string, knowledge?: string) {
+  async initialize(apiKey: string, knowledge?: string) {
     this.client = new OpenAI({
       apiKey,
       baseURL: 'https://idealab.alibaba-inc.com/api/openai/v1',

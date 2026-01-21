@@ -20,6 +20,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "axios": "^1.13.2",
     "electron-log": "^5.0.1",
     "electron-store": "^8.1.0",
     "eventsource": "^4.1.0",
