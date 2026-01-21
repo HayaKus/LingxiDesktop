@@ -1,7 +1,7 @@
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
   "releaseDate": "2026-01-21",
-  "downloadUrl": "https://github.com/HayaKus/IamDog/releases/download/v0.1.2/lingxi-0.1.2.dmg",
+  "downloadUrl": "https://github.com/HayaKus/IamDog/releases/download/v0.1.3/lingxi-0.1.3.dmg",
   "changeLog": [
     "新增: 应用内检测更新功能",
     "新增: 支持版本对比和更新提示",
