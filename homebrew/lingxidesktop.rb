@@ -2,7 +2,7 @@ cask "lingxidesktop" do
   version "0.1.7"
   sha256 :no_check  # 开发阶段可以使用 :no_check，正式发布建议计算实际的 SHA256 值
 
-  url "https://github.com/HayaKus/LingxiDesktop/releases/download/v#{version}/lingxi-#{version}.dmg"
+  url "https://github.com/HayaKus/LingxiDesktop/releases/download/v#{version}/灵析-#{version}-arm64.dmg"
   name "LingxiDesktop"
   name "灵析"
   desc "具备屏幕感知能力的桌面AI助手"
