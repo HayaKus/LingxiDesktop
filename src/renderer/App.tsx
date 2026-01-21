@@ -24,6 +24,10 @@ function App() {
   const [tempKnowledge, setTempKnowledge] = useState('');
   const [shortcut, setShortcut] = useState('CommandOrControl+Shift+0');
   const [tempShortcut, setTempShortcut] = useState('CommandOrControl+Shift+0');
+  const [clipboardImageExpiry, setClipboardImageExpiry] = useState(60);
+  const [tempClipboardImageExpiry, setTempClipboardImageExpiry] = useState(60);
+  const [autoUnselectImages, setAutoUnselectImages] = useState(true);
+  const [tempAutoUnselectImages, setTempAutoUnselectImages] = useState(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [showCommandTest, setShowCommandTest] = useState(false);
@@ -185,6 +189,16 @@ function App() {
         setShortcut(config.shortcut);
         setTempShortcut(config.shortcut);
       }
+      // 加载粘贴板图片过期时间
+      if (config?.clipboardImageExpiry !== undefined) {
+        setClipboardImageExpiry(config.clipboardImageExpiry);
+        setTempClipboardImageExpiry(config.clipboardImageExpiry);
+      }
+      // 加载自动取消图片选项
+      if (config?.autoUnselectImages !== undefined) {
+        setAutoUnselectImages(config.autoUnselectImages);
+        setTempAutoUnselectImages(config.autoUnselectImages);
+      }
     } catch (error) {
       console.error('Load config failed:', error);
       setShowConfig(true);
@@ -209,12 +223,16 @@ function App() {
       await window.electronAPI.saveConfig({ 
         apiKey: finalApiKey,
         knowledge: tempKnowledge,
-        shortcut: tempShortcut
+        shortcut: tempShortcut,
+        clipboardImageExpiry: tempClipboardImageExpiry,
+        autoUnselectImages: tempAutoUnselectImages,
       });
       // 只保存用户输入的 API Key 到状态（不保存默认 API Key）
       setApiKey(finalApiKey);
       setKnowledge(tempKnowledge);
       setShortcut(tempShortcut);
+      setClipboardImageExpiry(tempClipboardImageExpiry);
+      setAutoUnselectImages(tempAutoUnselectImages);
       useChatStore.getState().setKnowledge(tempKnowledge);
       setShowConfig(false);
       // 创建新会话（会自动清空）
@@ -284,23 +302,6 @@ function App() {
             配置应用参数
           </p>
 
-          {/* API Key 配置 */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              API Key
-            </label>
-            <input
-              type="password"
-              value={tempApiKey}
-              onChange={(e) => setTempApiKey(e.target.value)}
-              placeholder="不填则使用服务端默认 API Key"
-              className="input-field"
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              不填则使用服务端默认 API Key（需要登录）
-            </p>
-          </div>
-
           {/* 快捷键配置 */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -318,6 +319,43 @@ function App() {
             </p>
             <p className="text-xs text-gray-400 mt-1">
               当前快捷键：<code className="bg-gray-100 px-1 py-0.5 rounded">{shortcut}</code>
+            </p>
+          </div>
+
+          {/* MCP服务器配置 */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-gray-700">
+                📡 MCP 服务器
+              </label>
+              <button
+                onClick={() => setShowMcpConfig(true)}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                管理服务器 →
+              </button>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded p-3">
+              <p className="text-xs text-gray-600">
+                当前仅支持Aone开放平台上的MCP
+              </p>
+            </div>
+          </div>
+
+          {/* API Key 配置 */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              API Key
+            </label>
+            <input
+              type="password"
+              value={tempApiKey}
+              onChange={(e) => setTempApiKey(e.target.value)}
+              placeholder="不填则使用服务端默认 API Key"
+              className="input-field"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              不填则使用服务端默认 API Key（需要登录）
             </p>
           </div>
 
@@ -356,34 +394,51 @@ function App() {
             </p>
           </div>
 
-          {/* MCP服务器配置 */}
+          {/* 粘贴板图片过期时间配置 */}
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-gray-700">
-                📡 MCP 服务器
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📋 粘贴板中截图识别时间范围（秒）
+            </label>
+            <input
+              type="number"
+              value={tempClipboardImageExpiry}
+              onChange={(e) => setTempClipboardImageExpiry(Math.max(1, parseInt(e.target.value) || 60))}
+              min="1"
+              max="300"
+              className="input-field"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              设置截图在粘贴板历史中保留的时间，默认60秒
+            </p>
+          </div>
+
+          {/* 自动取消图片选项配置 */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              🖼️ 首轮对话后自动取消附带图片选项
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={tempAutoUnselectImages === true}
+                  onChange={() => setTempAutoUnselectImages(true)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-gray-700">是</span>
               </label>
-              <button
-                onClick={() => setShowMcpConfig(true)}
-                className="text-xs text-blue-600 hover:text-blue-800"
-              >
-                管理服务器 →
-              </button>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 rounded p-3">
-              <p className="text-xs text-gray-600 mb-2">
-                MCP（Model Context Protocol）允许AI使用外部工具和服务
-              </p>
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span>🔧</span>
-                <span>支持 HTTP 和 SSE 协议</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                <span>🌐</span>
-                <span>可连接本地或远程MCP服务器</span>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={tempAutoUnselectImages === false}
+                  onChange={() => setTempAutoUnselectImages(false)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-gray-700">否</span>
+              </label>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              提示：通过浏览器控制台使用 <code className="bg-gray-100 px-1 rounded">window.electronAPI.mcp*</code> API配置
+              开启后，AI回复完成时会自动取消勾选截图和粘贴板选项
             </p>
           </div>
 
@@ -461,6 +516,8 @@ function App() {
               setTempApiKey(apiKey);
               setTempKnowledge(knowledge);
               setTempShortcut(shortcut);
+              setTempClipboardImageExpiry(clipboardImageExpiry);
+              setTempAutoUnselectImages(autoUnselectImages);
               setShowConfig(true);
             }}
             className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1 rounded hover:bg-gray-100"

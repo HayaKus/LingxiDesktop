@@ -13,6 +13,8 @@ interface StoreSchema {
   shortcut: string;
   session?: UserSession;  // 完整的会话信息（包含 token）
   userInfo?: BucUserInfo; // 兼容旧版本
+  clipboardImageExpiry?: number; // 粘贴板中截图识别时间范围（秒），默认60秒
+  autoUnselectImages?: boolean; // 首轮对话后自动取消附带图片选项，默认true
 }
 
 export class ConfigManager {
@@ -25,6 +27,8 @@ export class ConfigManager {
         apiKey: '',
         model: 'qwen-vl-max-latest',
         shortcut: 'CommandOrControl+Shift+0',
+        clipboardImageExpiry: 60,
+        autoUnselectImages: true,
       },
     });
     

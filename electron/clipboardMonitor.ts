@@ -15,7 +15,7 @@ export class ClipboardMonitor {
   private clipboardImageHistory: ClipboardImage[] = [];
   private clipboardMonitorInterval: NodeJS.Timeout | null = null;
   private lastClipboardImageHash: string | null = null;
-  private readonly IMAGE_LIFETIME = 30000; // 30秒
+  private imageLifetime: number = 60000; // 默认60秒，可通过setImageLifetime修改
 
   /**
    * 压缩图片（与截图使用相同的压缩策略）
@@ -59,10 +59,10 @@ export class ClipboardMonitor {
       return;
     }
 
-    // 创建定时器，30秒后自动删除
+    // 创建定时器，根据配置的时间后自动删除
     const timerId = setTimeout(() => {
       this.removeClipboardImage(dataUrl);
-    }, this.IMAGE_LIFETIME);
+    }, this.imageLifetime);
 
     // 添加到历史
     const image: ClipboardImage = {
@@ -72,7 +72,7 @@ export class ClipboardMonitor {
     };
     
     this.clipboardImageHistory.push(image);
-    log.info(`Clipboard image added. Total: ${this.clipboardImageHistory.length}, will expire in 30s`);
+    log.info(`Clipboard image added. Total: ${this.clipboardImageHistory.length}, will expire in ${this.imageLifetime/1000}s`);
   }
 
   /**
@@ -86,6 +86,14 @@ export class ClipboardMonitor {
       this.clipboardImageHistory.splice(index, 1);
       log.info(`Clipboard image removed. Remaining: ${this.clipboardImageHistory.length}`);
     }
+  }
+
+  /**
+   * 设置图片过期时间（秒）
+   */
+  setImageLifetime(seconds: number): void {
+    this.imageLifetime = seconds * 1000; // 转换为毫秒
+    log.info(`📋 Clipboard image lifetime set to ${seconds}s`);
   }
 
   /**

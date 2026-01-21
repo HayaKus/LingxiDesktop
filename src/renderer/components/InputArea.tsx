@@ -11,6 +11,7 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
   const [input, setInput] = useState('');
   const [includeScreenshot, setIncludeScreenshot] = useState(true); // 使用本地状态
   const [includeClipboard, setIncludeClipboard] = useState(true); // 使用本地状态
+  const [autoUnselectImages, setAutoUnselectImages] = useState(true); // 配置：是否自动取消图片选项
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const noticeTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   
@@ -31,12 +32,27 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
     textareaRef.current?.focus();
   }, []);
 
-  // 默认勾选选项（只在组件挂载时执行一次）
+  // 加载配置并默认勾选选项（只在组件挂载时执行一次）
   React.useEffect(() => {
-    console.log('🔧 InputArea mounted, setting checkboxes to true');
+    console.log('🔧 InputArea mounted, loading config and setting checkboxes to true');
     setIncludeScreenshot(true);
     setIncludeClipboard(true);
     setAutoClipboard(true);
+    
+    // 加载配置
+    const loadConfig = async () => {
+      try {
+        const config = await window.electronAPI.getConfig();
+        if (config?.autoUnselectImages !== undefined) {
+          setAutoUnselectImages(config.autoUnselectImages);
+          console.log('📋 Loaded autoUnselectImages config:', config.autoUnselectImages);
+        }
+      } catch (error) {
+        console.error('Failed to load config:', error);
+      }
+    };
+    
+    loadConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 空依赖数组，只在挂载时执行
   
@@ -45,14 +61,19 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
     console.log('📋 Checkbox states changed:', { includeScreenshot, includeClipboard });
   }, [includeScreenshot, includeClipboard]);
 
-  // 监听completed事件，重置复选框
+  // 监听completed事件，根据配置决定是否重置复选框
   React.useEffect(() => {
     if (!currentSessionId) return;
     
     const handleCompleted = () => {
-      console.log('🎉 Received completed, resetting checkboxes to false');
-      setIncludeScreenshot(false);
-      setIncludeClipboard(false);
+      // 只有当配置为true时才自动取消勾选
+      if (autoUnselectImages) {
+        console.log('🎉 Received completed, autoUnselectImages=true, resetting checkboxes to false');
+        setIncludeScreenshot(false);
+        setIncludeClipboard(false);
+      } else {
+        console.log('🎉 Received completed, autoUnselectImages=false, keeping checkboxes unchanged');
+      }
     };
     
     const handleSessionUpdate = (data: any) => {
@@ -66,7 +87,7 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
     return () => {
       window.electronAPI.offSessionUpdate(handleSessionUpdate);
     };
-  }, [currentSessionId]);
+  }, [currentSessionId, autoUnselectImages]);
   
   // 组件卸载时清理定时器
   React.useEffect(() => {
@@ -111,10 +132,12 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
       if (includeClipboard) {
         try {
           const clipboardImages = await window.electronAPI.readClipboardImage();
+          console.log('📋 Clipboard images received:', clipboardImages?.length || 0);
           if (clipboardImages && Array.isArray(clipboardImages) && clipboardImages.length > 0) {
             clipboardImageUrls.push(...clipboardImages);
             allImageUrls.push(...clipboardImages);
             totalImageCount += clipboardImages.length;
+            console.log('📋 Total clipboard images:', clipboardImageUrls.length);
           }
         } catch (error) {
           console.error('Read clipboard failed:', error);
@@ -137,7 +160,7 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
         addMessage(currentSessionId, {
           id: generateId(),
           role: 'assistant',
-          content: '📸 我看到了你的屏幕截图：',
+          content: '📸 我看到了你的屏幕：',
           imageUrls: screenshotImageUrls,
           timestamp: Date.now(),
         });
@@ -154,23 +177,19 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
         });
       }
 
-      // 构建消息内容（用于发送给主进程）
-      let messageContent: any = userMessage;
-      
-      // 如果有图片，构建多模态内容
-      if (allImageUrls.length > 0) {
-        messageContent = [
-          { type: 'text', text: userMessage },
-          ...allImageUrls.map(url => ({
-            type: 'image_url',
-            image_url: { url }
-          }))
-        ];
-      }
-
-      // 准备发送给主进程的消息列表（过滤掉 tool 消息）
+      // 准备发送给主进程的消息列表（过滤掉 tool 消息和仅用于显示的图片消息）
       const sessionMessages = messages
-        .filter(msg => msg.role !== 'tool')
+        .filter(msg => {
+          // 过滤掉 tool 消息
+          if (msg.role === 'tool') return false;
+          
+          // 过滤掉仅用于显示图片的 assistant 消息（这些消息会被重新构建）
+          if (msg.role === 'assistant' && (msg.imageUrls || msg.clipboardImageUrls)) {
+            return false;
+          }
+          
+          return true;
+        })
         .map(msg => ({
           id: msg.id,
           role: msg.role as 'user' | 'assistant' | 'system',
@@ -180,15 +199,51 @@ export function InputArea({ currentSessionId }: InputAreaProps) {
           timestamp: msg.timestamp,
         }));
 
-      // 添加当前用户消息
+      // 添加当前用户消息（只包含文本）
       sessionMessages.push({
         id: newUserMessage.id,
         role: newUserMessage.role,
-        content: messageContent,
+        content: userMessage,
         imageUrls: undefined,
         clipboardImageUrls: undefined,
         timestamp: newUserMessage.timestamp,
       });
+      
+      // 如果有窗口截图，添加assistant消息（包含图片的多模态内容）
+      if (screenshotImageUrls.length > 0) {
+        sessionMessages.push({
+          id: `screenshot-${Date.now()}`,
+          role: 'user' as const,  // 改为user角色，这样AI才能看到
+          content: [
+            { type: 'text', text: '📸 我的屏幕：' },
+            ...screenshotImageUrls.map(url => ({
+              type: 'image_url',
+              image_url: { url }
+            }))
+          ] as any,  // 多模态内容
+          imageUrls: screenshotImageUrls,  // 保存URL用于历史记录
+          clipboardImageUrls: undefined,
+          timestamp: Date.now(),
+        });
+      }
+      
+      // 如果有粘贴板截图，添加assistant消息（包含图片的多模态内容）
+      if (clipboardImageUrls.length > 0) {
+        sessionMessages.push({
+          id: `clipboard-${Date.now()}`,
+          role: 'user' as const,  // 改为user角色，这样AI才能看到
+          content: [
+            { type: 'text', text: '📋 我粘贴板中的截图：' },
+            ...clipboardImageUrls.map(url => ({
+              type: 'image_url',
+              image_url: { url }
+            }))
+          ] as any,  // 多模态内容
+          imageUrls: undefined,
+          clipboardImageUrls: clipboardImageUrls,  // 保存URL用于历史记录
+          timestamp: Date.now(),
+        });
+      }
 
       // 发送到主进程处理
       await window.electronAPI.sessionStartAI(

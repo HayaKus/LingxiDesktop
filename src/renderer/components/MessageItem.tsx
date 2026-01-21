@@ -35,10 +35,52 @@ export const MessageItem = memo(function MessageItem({ message }: MessageItemPro
               : 'bg-white border border-gray-200 text-gray-800'
           }`}
         >
-          {/* 用户消息 - 只展示文字 */}
+          {/* 用户消息 - 展示文字和图片 */}
           {isUser ? (
-            <div>
+            <div className="w-full min-w-0">
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              
+              {/* 用户消息也显示图片 */}
+              {(() => {
+                const images = message.imageUrls || [];
+                if (images.length > 0) {
+                  return (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {images.map((url, index) => (
+                        <img
+                          key={index}
+                          src={url}
+                          alt={`截图 ${index + 1}`}
+                          className="max-w-full rounded border border-gray-200"
+                          style={{ maxHeight: '300px' }}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
+              {/* 用户消息显示粘贴板截图 */}
+              {(() => {
+                const images = message.clipboardImageUrls || [];
+                if (images.length > 0) {
+                  return (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {images.map((url, index) => (
+                        <img
+                          key={index}
+                          src={url}
+                          alt={`粘贴板截图 ${index + 1}`}
+                          className="max-w-full rounded border border-gray-200"
+                          style={{ maxHeight: '300px' }}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           ) : message.role === 'tool' ? (
             /* 工具调用结果 */

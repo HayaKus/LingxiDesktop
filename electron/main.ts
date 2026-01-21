@@ -129,6 +129,11 @@ app.whenReady().then(async () => {
     log.info('✅ IPC handlers registered');
     
     // 5. 启动剪贴板监听
+    // 从配置中读取图片过期时间
+    const config = configManager.getConfig();
+    if (config.clipboardImageExpiry !== undefined) {
+      clipboardMonitor.setImageLifetime(config.clipboardImageExpiry);
+    }
     clipboardMonitor.start();
     
     // 6. 启动自动保存

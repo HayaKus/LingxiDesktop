@@ -206,6 +206,12 @@ export class IpcHandlers {
         await sessionManager.initialize(apiKey, config.knowledge);
         log.info('✅ SessionManager re-initialized with API KEY');
         
+        // 更新剪贴板图片过期时间（如果有变化）
+        if (config.clipboardImageExpiry !== undefined) {
+          this.clipboardMonitor.setImageLifetime(config.clipboardImageExpiry);
+          log.info('✅ Clipboard image lifetime updated:', config.clipboardImageExpiry);
+        }
+        
         // 重新注册快捷键（如果快捷键有变化）
         if (config.shortcut) {
           const success = reregisterShortcut(config.shortcut);

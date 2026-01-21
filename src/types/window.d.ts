@@ -38,8 +38,22 @@ interface Window {
   electronAPI: {
     captureScreen: () => Promise<string>;
     readClipboardImage: () => Promise<string | null>;
-    getConfig: () => Promise<{ apiKey: string; knowledge?: string; shortcut?: string; userInfo?: UserInfo }>;
-    saveConfig: (config: { apiKey?: string; knowledge?: string; shortcut?: string; userInfo?: UserInfo }) => Promise<boolean>;
+    getConfig: () => Promise<{ 
+      apiKey: string; 
+      knowledge?: string; 
+      shortcut?: string; 
+      userInfo?: UserInfo;
+      clipboardImageExpiry?: number;
+      autoUnselectImages?: boolean;
+    }>;
+    saveConfig: (config: { 
+      apiKey?: string; 
+      knowledge?: string; 
+      shortcut?: string; 
+      userInfo?: UserInfo;
+      clipboardImageExpiry?: number;
+      autoUnselectImages?: boolean;
+    }) => Promise<boolean>;
     getUserInfo: () => Promise<UserInfo | null>;
     bucLogin: () => Promise<UserInfo>;
     bucLogout: () => Promise<boolean>;
