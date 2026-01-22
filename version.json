@@ -1,11 +1,11 @@
 {
-  "version": "0.1.8",
+  "version": "0.1.9",
   "releaseDate": "2026-01-22",
-  "downloadUrl": "https://github.com/HayaKus/LingxiDesktop/releases/download/v0.1.8/lingxi-0.1.8.dmg",
+  "downloadUrl": "https://github.com/HayaKus/LingxiDesktop/releases/download/v0.1.9/lingxi-0.1.9.dmg",
   "changeLog": [
     "✨ 全新品牌：桌面伙伴首发",
     "🔄 迁移到新的 GitHub 仓库",
     "📦 全新的 Homebrew 安装方式"
   ],
-  "minVersion": "0.1.8"
+  "minVersion": "0.1.9"
 }
