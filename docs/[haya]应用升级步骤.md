@@ -5,7 +5,6 @@
 #### 1. 在主项目中发布新版本
 
 ```bash
-cd /path/to/IamDog
 
 # 更新版本号
 npm version 0.1.8
@@ -28,11 +27,11 @@ git push github master
 
 **然后在 GitHub 发布:**
 
-1. 访问: https://github.com/HayaKus/IamDog/releases/new
+1. 访问: https://github.com/HayaKus/LingxiDesktop/releases/new
 
 2. 填写信息:
-   - **Tag version**: `v0.1.1`
-   - **Release title**: `v0.1.1 - 首次发布`
+   - **Tag version**: `v0.1.8`
+   - **Release title**: `v0.1.8 - 首次发布`
    - **Description**:
      ```markdown
      ## 🎉 首次发布
@@ -67,9 +66,9 @@ shasum -a 256 lingxi-0.1.8.dmg
 #### 3. 更新 Tap 仓库
 
 ```bash
-cd /path/to/homebrew-iamdog
+cd /path/to/homebrew-lingxidesktop
 
-# 编辑 Casks/iamdog.rb
+# 编辑 Casks/lingxidesktop.rb
 # 更新以下内容：
 # - version "0.1.8"
 # - sha256 "实际的sha256值"
@@ -78,11 +77,11 @@ cd /path/to/homebrew-iamdog
 示例更新：
 
 ```ruby
-cask "iamdog" do
+cask "lingxidesktop" do
   version "0.1.8"
   sha256 "a1b2c3d4e5f6..."  # 替换为实际计算的值
 
-  url "https://github.com/HayaKus/IamDog/releases/download/v#{version}/lingxi-#{version}.dmg"
+  url "https://github.com/HayaKus/LingxiDesktop/releases/download/v#{version}/lingxi-#{version}.dmg"
   # ... 其他配置保持不变
 end
 ```
@@ -90,7 +89,7 @@ end
 #### 4. 提交更新
 
 ```bash
-git add Casks/iamdog.rb
+git add Casks/lingxidesktop.rb
 git commit -m "Update to version 0.1.8"
 git push origin master
 ```
@@ -98,16 +97,16 @@ git push origin master
 #### 5. 测试安装
 
 ```bash
-brew tap HayaKus/iamdog
+brew tap HayaKus/lingxidesktop
 
 # 更新 Homebrew
 brew update
 
 # 测试安装
-brew reinstall --cask iamdog
+brew reinstall --cask lingxidesktop
 
 # 验证版本
-brew info --cask iamdog
+brew info --cask lingxidesktop
 ```
 
 ### 更新到最新版本
@@ -116,6 +115,6 @@ brew info --cask iamdog
 # 更新 Homebrew 和 Tap 仓库
 brew update
 
-# 升级 IamDog 到最新版本
-brew upgrade --cask iamdog
+# 升级 lingxidesktop 到最新版本
+brew upgrade --cask lingxidesktop
 ```
