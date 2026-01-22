@@ -39,7 +39,7 @@ npm version 0.1.1
 npm run electron:build
 
 # 3. 在 GitHub 创建 Release (v0.1.1)
-# 4. 上传 release/灵析-0.1.1.dmg (重命名为 lingxi-0.1.1.dmg)
+# 4. 上传 release/桌面伙伴-0.1.1.dmg (重命名为 lingxi-0.1.1.dmg)
 # 5. 发布!
 ```
 

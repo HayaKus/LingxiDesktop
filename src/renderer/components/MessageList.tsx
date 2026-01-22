@@ -34,7 +34,7 @@ export function MessageList({ sessionId }: MessageListProps) {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center text-gray-400">
           <div className="text-6xl mb-4">🐕</div>
-          <p className="text-lg mb-2">你好！我是灵析</p>
+          <p className="text-lg mb-2">你好！我是桌面伙伴</p>
           <p className="text-sm">你可以问我任何问题</p>
         </div>
       </div>

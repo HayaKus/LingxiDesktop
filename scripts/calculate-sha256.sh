@@ -18,7 +18,7 @@ if [ -z "$1" ]; then
   echo "用法: $0 <DMG文件路径>"
   echo ""
   echo "示例:"
-  echo "  $0 release/灵析-0.1.5.dmg"
+  echo "  $0 release/桌面伙伴-0.1.5.dmg"
   echo "  $0 ~/Downloads/lingxi-0.1.5.dmg"
   echo ""
   exit 1

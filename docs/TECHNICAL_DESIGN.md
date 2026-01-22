@@ -1,4 +1,4 @@
-# 灵析 (Lingxi) - 技术方案设计
+# 桌面伙伴 (Lingxi) - 技术方案设计
 
 > 桌面AI助手的详细技术实现方案
 
@@ -15,7 +15,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     灵析 (Lingxi) 桌面应用                       │
+│                     桌面伙伴 (Lingxi) 桌面应用                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐│
@@ -203,15 +203,15 @@ const sources = await desktopCapturer.getSources({
   thumbnailSize: { width: 3840, height: 2160 },  // 4K分辨率
 });
 
-// 2. 过滤掉灵析自己的窗口
+// 2. 过滤掉桌面伙伴自己的窗口
 const windowSources = sources.filter(source => {
   const name = source.name.toLowerCase();
   return !name.includes('lingxi') &&
-         !name.includes('灵析') &&
+         !name.includes('桌面伙伴') &&
          source.id.startsWith('window:');
 });
 
-// 3. 选择第一个非灵析窗口(通常是用户正在使用的窗口)
+// 3. 选择第一个非桌面伙伴窗口(通常是用户正在使用的窗口)
 const targetWindow = windowSources[0];
 ```
 
@@ -1091,22 +1091,22 @@ npm run electron:build
 
 # 生成的文件
 release/
-├── 灵析-0.1.0-arm64.dmg              # DMG 安装包
-├── 灵析-0.1.0-arm64-mac.zip          # ZIP 压缩包
+├── 桌面伙伴-0.1.0-arm64.dmg              # DMG 安装包
+├── 桌面伙伴-0.1.0-arm64-mac.zip          # ZIP 压缩包
 └── mac-arm64/
-    └── 灵析.app                       # 应用程序
+    └── 桌面伙伴.app                       # 应用程序
 ```
 
 ### 安装方式
 ```bash
 # 方式1：直接运行
-open release/mac-arm64/灵析.app
+open release/mac-arm64/桌面伙伴.app
 
 # 方式2：安装到应用程序文件夹
-cp -r release/mac-arm64/灵析.app /Applications/
+cp -r release/mac-arm64/桌面伙伴.app /Applications/
 
 # 方式3：使用DMG安装包
-open release/灵析-0.1.0-arm64.dmg
+open release/桌面伙伴-0.1.0-arm64.dmg
 ```
 
 ---

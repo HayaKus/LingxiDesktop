@@ -31,7 +31,7 @@ macOS 有三层安全检查:
 
 ```bash
 # 方法1: 在终端移除隔离属性
-xattr -cr /Applications/灵析.app
+xattr -cr /Applications/桌面伙伴.app
 
 # 方法2: 或者移除下载的 DMG 的隔离属性
 xattr -cr ~/Downloads/lingxi-0.1.5.dmg
@@ -86,12 +86,12 @@ xattr -cr ~/Downloads/lingxi-0.1.5.dmg
 
 ### macOS 用户注意事项
 
-如果遇到"灵析已损坏,无法打开"的提示:
+如果遇到"桌面伙伴已损坏,无法打开"的提示:
 
 **方法1: 使用终端 (推荐)**
 ```bash
 # 打开终端,执行以下命令
-xattr -cr /Applications/灵析.app
+xattr -cr /Applications/桌面伙伴.app
 ```
 
 **方法2: 右键打开**
@@ -117,7 +117,7 @@ xattr -cr /Applications/灵析.app
    
    如果遇到"已损坏"提示,请在终端执行:
    \`\`\`bash
-   xattr -cr /Applications/灵析.app
+   xattr -cr /Applications/桌面伙伴.app
    \`\`\`
    
    或者右键点击应用 → 选择"打开"
@@ -144,8 +144,8 @@ xattr -cr /Applications/灵析.app
 
 ```bash
 #!/bin/bash
-echo "正在修复灵析应用的权限..."
-xattr -cr /Applications/灵析.app
+echo "正在修复桌面伙伴应用的权限..."
+xattr -cr /Applications/桌面伙伴.app
 echo "✅ 修复完成!现在可以打开应用了。"
 read -p "按回车键退出..."
 ```

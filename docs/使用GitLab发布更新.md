@@ -63,10 +63,10 @@ npm run electron:build
 
 # 3. 检查 release 目录
 ls -lh release/
-# 应该看到: 灵析-0.1.5.dmg
+# 应该看到: 桌面伙伴-0.1.5.dmg
 
 # 4. 重命名为英文名(方便URL)
-mv "release/灵析-0.1.5.dmg" "release/lingxi-0.1.5.dmg"
+mv "release/桌面伙伴-0.1.5.dmg" "release/lingxi-0.1.5.dmg"
 
 # 5. 更新 version.json
 # 修改版本号和下载链接

@@ -1,6 +1,6 @@
 # 🍺 Homebrew 安装指南
 
-通过 Homebrew 可以更方便地安装和更新 IamDog（灵析）应用。
+通过 Homebrew 可以更方便地安装和更新 IamDog（桌面伙伴）应用。
 
 ## 📥 安装步骤
 
@@ -49,11 +49,11 @@ brew uninstall --cask --zap iamdog
 ```
 
 这将删除以下数据：
-- `~/Library/Application Support/灵析`
+- `~/Library/Application Support/桌面伙伴`
 - `~/Library/Application Support/lingxi`
 - `~/Library/Preferences/com.alibaba.lingxi.plist`
 - `~/Library/Preferences/com.iamdog.app.plist`
-- `~/Library/Logs/灵析`
+- `~/Library/Logs/桌面伙伴`
 - 已保存的应用状态
 
 ## 🔍 其他命令
@@ -83,7 +83,7 @@ brew reinstall --cask iamdog
 如果安装后提示应用已损坏，请执行：
 
 ```bash
-xattr -cr /Applications/灵析.app
+xattr -cr /Applications/桌面伙伴.app
 ```
 
 ### 问题2: 无法更新

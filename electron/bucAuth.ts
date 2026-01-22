@@ -153,7 +153,7 @@ export class BucAuthService {
                 <div class="container">
                   <div class="success-icon">✅</div>
                   <h1>登录成功！</h1>
-                  <p>您可以关闭此页面，返回灵析应用</p>
+                  <p>您可以关闭此页面，返回桌面伙伴应用</p>
                 </div>
               </body>
               </html>

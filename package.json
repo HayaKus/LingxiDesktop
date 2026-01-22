@@ -1,7 +1,7 @@
 {
   "name": "lingxi",
   "version": "0.1.8",
-  "description": "灵析 - 具备屏幕感知能力的桌面AI助手",
+  "description": "桌面伙伴 - 具备屏幕感知能力的桌面AI助手",
   "main": "dist/electron/main.js",
   "author": "哈雅 (263321)",
   "license": "ISC",
@@ -52,7 +52,7 @@
   },
   "build": {
     "appId": "com.alibaba.lingxi",
-    "productName": "灵析",
+    "productName": "桌面伙伴",
     "asar": false,
     "directories": {
       "output": "release"

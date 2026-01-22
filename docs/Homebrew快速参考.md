@@ -69,7 +69,7 @@ git push github master
 # 在 GitHub 创建 Release 并上传 DMG
 
 # 2. 计算 SHA256
-./scripts/calculate-sha256.sh release/灵析-0.1.6.dmg
+./scripts/calculate-sha256.sh release/桌面伙伴-0.1.6.dmg
 
 # 3. 更新 Homebrew Tap
 ./scripts/update-homebrew-tap.sh 0.1.6 <SHA256值>
@@ -105,7 +105,7 @@ homebrew-iamdog/               # Tap 仓库
 ### 应用已损坏
 
 ```bash
-xattr -cr /Applications/灵析.app
+xattr -cr /Applications/桌面伙伴.app
 ```
 
 ### Tap 找不到

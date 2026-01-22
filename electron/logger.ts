@@ -20,7 +20,7 @@ class Logger {
   private readonly MAX_LOG_FILES = 3; // 保留3个日志文件
   
   constructor() {
-    // 日志文件路径: ~/Library/Logs/灵析/app.log
+    // 日志文件路径: ~/Library/Logs/桌面伙伴/app.log
     const logsDir = path.join(app.getPath('logs'));
     
     // 确保日志目录存在
@@ -38,7 +38,7 @@ class Logger {
     this.logStream = fs.createWriteStream(this.logFilePath, { flags: 'a' });
     
     // 启动时输出日志文件位置
-    const startMessage = `\n${'='.repeat(80)}\n📝 灵析日志 - ${new Date().toLocaleString('zh-CN')}\n📂 日志文件: ${this.logFilePath}\n📊 日志限制: 最多${this.MAX_LOG_FILES}个文件，每个最大${this.MAX_LOG_SIZE / 1024 / 1024}MB\n${'='.repeat(80)}\n`;
+    const startMessage = `\n${'='.repeat(80)}\n📝 桌面伙伴日志 - ${new Date().toLocaleString('zh-CN')}\n📂 日志文件: ${this.logFilePath}\n📊 日志限制: 最多${this.MAX_LOG_FILES}个文件，每个最大${this.MAX_LOG_SIZE / 1024 / 1024}MB\n${'='.repeat(80)}\n`;
     console.log(startMessage);
     this.logStream.write(startMessage);
   }

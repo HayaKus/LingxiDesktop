@@ -47,7 +47,7 @@ git push github master
 
 3. **上传安装包**:
    - 点击 "Attach binaries"
-   - 上传 `release/灵析-0.1.1.dmg`
+   - 上传 `release/lingxi-0.1.1.dmg`
    - 重命名为: `lingxi-0.1.1.dmg`
 
 4. **点击 "Publish release"**

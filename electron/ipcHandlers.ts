@@ -80,7 +80,7 @@ export class IpcHandlers {
     // 截图请求 - 智能截取当前窗口
     ipcMain.handle('capture-screen', async () => {
       try {
-        // 获取灵析窗口的位置
+        // 获取桌面伙伴窗口的位置
         let petPosition = null;
         const petWindow = this.windowManager.getPetWindow();
         if (petWindow) {
@@ -108,12 +108,12 @@ export class IpcHandlers {
         
         let screenshot = null;
         
-        // 如果有灵析位置信息，尝试找到它下方的窗口
+        // 如果有桌面伙伴位置信息，尝试找到它下方的窗口
         if (petPosition) {
           const windowSources = sources.filter(source => {
             const name = source.name.toLowerCase();
             const isOwnWindow = name.includes('lingxi') || 
-                               name.includes('灵析') ||
+                               name.includes('桌面伙伴') ||
                                name.includes('electron');
             
             if (isOwnWindow) {

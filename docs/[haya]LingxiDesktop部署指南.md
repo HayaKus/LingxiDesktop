@@ -73,7 +73,7 @@ npm run electron:build
      ```markdown
      ## 🎉 LingxiDesktop v0.1.7
      
-     灵析桌面版 - 具备屏幕感知能力的桌面AI助手
+     桌面伙伴 - 具备屏幕感知能力的桌面AI助手
      
      ### ✨ 特性
      - 屏幕感知能力
@@ -121,7 +121,7 @@ git push origin main
 ```markdown
 # LingxiDesktop Homebrew Tap
 
-灵析桌面版的 Homebrew 安装源
+桌面伙伴的 Homebrew 安装源
 
 ## 安装
 
@@ -165,7 +165,7 @@ brew info --cask lingxidesktop
 brew install --cask lingxidesktop
 
 # 验证
-ls -la /Applications/灵析.app
+ls -la /Applications/桌面伙伴.app
 ```
 
 ### 测试更新检测
@@ -315,7 +315,7 @@ A: 确保文件已提交到 master 分支，GitHub Raw 地址使用 `master` 而
 A: 检查 Cask 文件中的 URL 是否正确，确保 GitHub Release 已发布
 
 ### Q: 应用显示"已损坏"
-A: 执行 `xattr -cr /Applications/灵析.app`
+A: 执行 `xattr -cr /Applications/桌面伙伴.app`
 
 ---
 

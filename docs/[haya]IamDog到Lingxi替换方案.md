@@ -2,7 +2,7 @@
 
 ## 📌 替换概览
 
-将项目从 "IamDog" 完全迁移到 "Lingxi"（灵析）品牌名称。
+将项目从 "IamDog" 完全迁移到 "Lingxi"品牌名称。
 
 ### 替换映射关系
 
@@ -210,7 +210,6 @@ brew install --cask lingxi
 替换完成后需要验证：
 - [ ] 应用能正常编译打包
 - [ ] Bundle ID 已更新
-- [ ] 应用名称显示为 "灵析" 或 "Lingxi"
 - [ ] OAuth 客户端名称已更新
 - [ ] 更新检查 URL 指向新仓库
 - [ ] Homebrew 安装命令可用

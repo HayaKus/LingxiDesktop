@@ -2,7 +2,7 @@
 
 ## 概述
 
-分析如何让灵析应用像 Claude Code 和 Cline 一样控制本地 CLI 命令。
+分析如何让桌面伙伴应用像 Claude Code 和 Cline 一样控制本地 CLI 命令。
 
 ## Claude Code / Cline 的 CLI 控制能力
 

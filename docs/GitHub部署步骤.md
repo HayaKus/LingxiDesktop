@@ -16,7 +16,7 @@
    - 点击右上角 "+" → "New repository"
    - 填写信息:
      - Repository name: `IamDog` (或你喜欢的名字)
-     - Description: `灵析 - 具备屏幕感知能力的桌面AI助手`
+     - Description: `桌面伙伴 - 具备屏幕感知能力的桌面AI助手`
      - 选择: **Public** (公开仓库,用户才能下载)
      - 不要勾选 "Initialize this repository with a README"
    - 点击 "Create repository"
@@ -100,8 +100,8 @@ npm version 0.1.1
 npm run electron:build
 
 # 构建完成后,安装包在 release 目录:
-# release/灵析-0.1.1.dmg (macOS)
-# release/灵析-0.1.1.exe (Windows)
+# release/桌面伙伴-0.1.1.dmg (macOS)
+# release/桌面伙伴-0.1.1.exe (Windows)
 ```
 
 ### 第五步: 发布到 GitHub Releases
@@ -131,7 +131,7 @@ npm run electron:build
 
 3. **上传安装包**
    - 点击 "Attach binaries by dropping them here or selecting them"
-   - 上传 `release/灵析-0.1.1.dmg` (重命名为 `lingxi-0.1.1.dmg`)
+   - 上传 `release/桌面伙伴-0.1.1.dmg` (重命名为 `lingxi-0.1.1.dmg`)
    - 如果有 Windows 版本,也一起上传
 
 4. **发布**

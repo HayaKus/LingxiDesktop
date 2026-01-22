@@ -1,4 +1,4 @@
-# 灵析 (LingxiDesktop)
+# 桌面伙伴
 
 具备屏幕感知能力的桌面AI助手
 
@@ -46,7 +46,7 @@ brew upgrade --cask lingxidesktop
 如果遇到"已损坏"或无法打开的提示，请执行：
 
 ```bash
-xattr -cr /Applications/灵析.app
+xattr -cr /Applications/桌面伙伴.app
 ```
 
 或在系统设置中允许运行：

@@ -49,7 +49,7 @@ cp /path/to/IamDog/homebrew/iamdog.rb Casks/
 ```markdown
 # IamDog Homebrew Tap
 
-灵析 - 具备屏幕感知能力的桌面AI助手
+桌面伙伴 - 具备屏幕感知能力的桌面AI助手
 
 ## 安装
 
@@ -250,11 +250,11 @@ cask "iamdog" do
   
   url "https://github.com/..."       # 下载 URL
   name "IamDog"             # 英文名称
-  name "灵析"                         # 中文名称
+  name "桌面伙伴"                         # 中文名称
   desc "具备屏幕感知能力的桌面AI助手"  # 描述
   homepage "https://github.com/..."  # 主页
   
-  app "灵析.app"                      # 安装的应用名
+  app "桌面伙伴.app"                      # 安装的应用名
 end
 ```
 
@@ -275,7 +275,7 @@ end
 
 ```ruby
 zap trash: [
-  "~/Library/Application Support/灵析",
+  "~/Library/Application Support/桌面伙伴",
   "~/Library/Preferences/com.alibaba.lingxi.plist",
   # 更多路径...
 ]
@@ -288,7 +288,7 @@ caveats <<~EOS
   欢迎使用 IamDog！
   
   首次启动时可能需要执行：
-    xattr -cr /Applications/灵析.app
+    xattr -cr /Applications/桌面伙伴.app
 EOS
 ```
 
@@ -339,7 +339,7 @@ brew tap HayaKus/iamdog
 **解决**:
 在 caveats 中提供清除属性的命令：
 ```bash
-xattr -cr /Applications/灵析.app
+xattr -cr /Applications/桌面伙伴.app
 ```
 
 ## 📚 参考资源
