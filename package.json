@@ -1,6 +1,6 @@
 {
   "name": "lingxi",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "桌面伙伴 - 具备屏幕感知能力的桌面AI助手",
   "main": "dist/electron/main.js",
   "author": "哈雅 (263321)",
