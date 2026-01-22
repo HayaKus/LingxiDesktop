@@ -7,22 +7,22 @@
 ```bash
 
 # 更新版本号
-npm version 0.1.8
+npm version 0.1.9
 
 # 构建应用
 npm run electron:build
 
 # 更新 version.json
-# 修改 version: "0.1.8"
+# 修改 version: "0.1.9"
 # 修改 downloadUrl 中的版本号和文件名
 
 # 提交代码
 git add package.json version.json
-git commit -m "发布 v0.1.8"
+git commit -m "发布 v0.1.9"
 git push github master
 
 # 在 GitHub 创建 Release 并上传 DMG
-# 上传时文件名格式：lingxi-0.1.8.dmg
+# 上传时文件名格式：lingxi-0.1.9.dmg
 ```
 
 **然后在 GitHub 发布:**
@@ -30,8 +30,8 @@ git push github master
 1. 访问: https://github.com/HayaKus/LingxiDesktop/releases/new
 
 2. 填写信息:
-   - **Tag version**: `v0.1.8`
-   - **Release title**: `v0.1.8 - 首次发布`
+   - **Tag version**: `v0.1.9`
+   - **Release title**: `v0.1.9 - 首次发布`
    - **Description**:
      ```markdown
      ## 🎉 首次发布
@@ -58,7 +58,7 @@ git push github master
 
 ```bash
 # 下载发布的 DMG 文件后
-shasum -a 256 lingxi-0.1.8.dmg
+shasum -a 256 lingxi-0.1.9.dmg
 ```
 
 复制输出的 SHA256 值。
@@ -70,7 +70,7 @@ cd /path/to/homebrew-lingxidesktop
 
 # 编辑 Casks/lingxidesktop.rb
 # 更新以下内容：
-# - version "0.1.8"
+# - version "0.1.9"
 # - sha256 "实际的sha256值"
 ```
 
@@ -78,7 +78,7 @@ cd /path/to/homebrew-lingxidesktop
 
 ```ruby
 cask "lingxidesktop" do
-  version "0.1.8"
+  version "0.1.9"
   sha256 "a1b2c3d4e5f6..."  # 替换为实际计算的值
 
   url "https://github.com/HayaKus/LingxiDesktop/releases/download/v#{version}/lingxi-#{version}.dmg"
@@ -90,7 +90,7 @@ end
 
 ```bash
 git add Casks/lingxidesktop.rb
-git commit -m "Update to version 0.1.8"
+git commit -m "Update to version 0.1.9"
 git push origin master
 ```
 
